@@ -1,20 +1,34 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Provider as ReduxProvider, useSelector } from 'react-redux';
+import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-export default function App() {
+import { store } from './src/store';
+import AppNavigator from './src/navigation/AppNavigator';
+
+function MainApp() {
+  // Use Redux to get current theme state
+  const isDarkMode = useSelector((state) => state.theme.isDarkMode);
+
+  // Choose light or dark theme
+  const theme = isDarkMode ? MD3DarkTheme : MD3LightTheme;
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <PaperProvider theme={theme}>
+      <SafeAreaProvider>
+        <NavigationContainer theme={theme}>
+          <AppNavigator />
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </PaperProvider>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+export default function App() {
+  return (
+    <ReduxProvider store={store}>
+      <MainApp />
+    </ReduxProvider>
+  );
+}
