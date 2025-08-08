@@ -12,13 +12,15 @@ import AboutScreen from '../screens/shared/About';
 import FeedbackScreen from '../screens/shared/Feedback';
 import CaseManagement from '../screens/lawyer/CaseManagement'; // optional
 import { SCREEN_NAMES } from '../utils/constants';
+import LawyerDashboard from '../screens/lawyer/LawyerDashboard';
 import AnalyticsScreen from '../screens/shared/AnalyticsScreen'; // optional
 import RevenueScreen from '../screens/shared/RevenueScreen'; // optional
+import ChatScreen from '../screens/shared/ChatScreen';
 const Stack = createStackNavigator();
 
 export default function InAppStack() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name={SCREEN_NAMES.CLIENT_DASHBOARD} component={ClientDashboard} />
       <Stack.Screen name={SCREEN_NAMES.FIND_LAWYERS} component={FindLawyers} />
       <Stack.Screen name={SCREEN_NAMES.AI_CHAT} component={AIChatScreen} />
@@ -32,7 +34,8 @@ export default function InAppStack() {
       <Stack.Screen name={SCREEN_NAMES.CASE_MANAGEMENT} component={CaseManagement} />
       <Stack.Screen name={SCREEN_NAMES.ANALYTICS} component={AnalyticsScreen} />
       <Stack.Screen name={SCREEN_NAMES.REVENUE} component={RevenueScreen} />
-      {/* Add more screens as needed */}
+      <Stack.Screen name={SCREEN_NAMES.LAWYER_DASHBOARD} component={LawyerDashboard} />
+      <Stack.Screen name={SCREEN_NAMES.CHAT} component={ChatScreen} />
     </Stack.Navigator>
   );
 }

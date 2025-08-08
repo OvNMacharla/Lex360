@@ -258,7 +258,7 @@ export default function LawyerDashboard() {
       title: 'Documents', 
       icon: 'file-document-multiple', 
       gradient: colors.gradient.info,
-      screen: SCREEN_NAMES.ANALYTICS,
+      screen: SCREEN_NAMES.LEGAL_DOCUMENTS,
       description: 'Manage files'
     },
     { 

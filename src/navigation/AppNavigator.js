@@ -15,7 +15,7 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { user } = useSelector((state) => state.auth);
-
+  console.log('AppNavigator user:', user);
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
