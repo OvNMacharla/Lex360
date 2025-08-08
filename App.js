@@ -3,7 +3,7 @@ import { Provider as ReduxProvider, useSelector } from 'react-redux';
 import { PaperProvider, MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
+import { StatusBar } from 'react-native';
 import { store } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
 
@@ -17,6 +17,12 @@ function MainApp() {
   return (
     <PaperProvider theme={theme}>
       <SafeAreaProvider>
+        <StatusBar
+          barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+          hidden={false}
+          backgroundColor="transparent"
+          translucent={false} // set to true if you want content behind it
+        />
         <NavigationContainer theme={theme}>
           <AppNavigator />
         </NavigationContainer>

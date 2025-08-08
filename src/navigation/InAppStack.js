@@ -10,7 +10,7 @@ import SettingsScreen from '../screens/shared/Settings';
 import HelpScreen from '../screens/shared/Help';
 import AboutScreen from '../screens/shared/About';
 import FeedbackScreen from '../screens/shared/Feedback';
-
+import CaseManagement from '../screens/lawyer/CaseManagement'; // optional
 import { SCREEN_NAMES } from '../utils/constants';
 
 const Stack = createStackNavigator();
@@ -28,6 +28,7 @@ export default function InAppStack() {
       <Stack.Screen name={SCREEN_NAMES.HELP} component={HelpScreen} />
       <Stack.Screen name={SCREEN_NAMES.ABOUT} component={AboutScreen} />
       <Stack.Screen name={SCREEN_NAMES.FEEDBACK} component={FeedbackScreen} />
+      <Stack.Screen name={SCREEN_NAMES.CASE_MANAGEMENT} component={CaseManagement} />
     </Stack.Navigator>
   );
 }

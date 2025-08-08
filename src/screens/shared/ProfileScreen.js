@@ -1,192 +1,307 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { 
-  Card, 
-  Text, 
-  Paragraph, 
-  Button, 
-  Avatar, 
-  List,
-  Title,
+import React, { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+  StatusBar,
+  Platform,
+} from 'react-native';
+import {
+  Text,
   Surface,
+  Button,
+  Switch,
+  Avatar,
   Divider,
-  Switch
+  Badge,
 } from 'react-native-paper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { logout } from '../../store/authSlice';
+import { toggleTheme } from '../../store/themeSlice';
 import { colors } from '../../styles/colors';
 import { USER_ROLES } from '../../utils/constants';
 import { useNavigation } from '@react-navigation/native';
-import { toggleTheme } from '../../store/themeSlice';
+
+const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const isDarkMode = useSelector((state) => state.theme.isDarkMode);
   const navigation = useNavigation();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   const handleLogout = () => {
     dispatch(logout());
   };
 
-  const profileOptions = [
+  const quickActions = [
     {
       title: 'Edit Profile',
-      description: 'Update your personal information',
-      icon: 'account-edit',
-      onPress: () => navigation.navigate('InApp', { screen: 'EditProfile' })
-    },
-    {
-      title: 'Feedback',
-      description: 'Send suggestions or report issues',
-      icon: 'message-text',
-      onPress: () => navigation.navigate('Feedback'),
+      icon: 'account-edit-outline',
+      color: '#4285F4',
+      onPress: () => navigation.navigate('InApp', { screen: 'EditProfile' }),
     },
     {
       title: 'Settings',
-      description: 'App preferences and privacy',
-      icon: 'cog',
-      onPress: () => navigation.navigate('InApp', { screen: 'SettingsScreen' })
+      icon: 'cog-outline',
+      color: '#34A853',
+      onPress: () => navigation.navigate('InApp', { screen: 'SettingsScreen' }),
     },
     {
-      title: 'Help & Support',
-      description: 'Get help and contact support',
-      icon: 'help-circle',
-      onPress: () => navigation.navigate('InApp', { screen: 'HelpScreen' })
+      title: 'Help',
+      icon: 'help-circle-outline',
+      color: '#FF9800',
+      onPress: () => navigation.navigate('InApp', { screen: 'HelpScreen' }),
     },
     {
       title: 'About',
-      description: 'App version and legal information',
-      icon: 'information',
-      onPress: () => navigation.navigate('InApp', { screen: 'AboutScreen' })
-    }
+      icon: 'information-outline',
+      color: '#9C27B0',
+      onPress: () => navigation.navigate('InApp', { screen: 'AboutScreen' }),
+    },
+  ];
+
+  const menuOptions = [
+    {
+      title: 'Feedback & Support',
+      subtitle: 'Send suggestions or report issues',
+      icon: 'message-text-outline',
+      rightIcon: 'chevron-right',
+      onPress: () => navigation.navigate('Feedback'),
+    },
+    {
+      title: 'Privacy Settings',
+      subtitle: 'Manage your data and privacy preferences',
+      icon: 'shield-account-outline',
+      rightIcon: 'chevron-right',
+      onPress: () => navigation.navigate('InApp', { screen: 'PrivacyScreen' }),
+    },
+    {
+      title: 'Notifications',
+      subtitle: 'Customize your notification preferences',
+      icon: 'bell-outline',
+      rightIcon: 'chevron-right',
+      onPress: () => navigation.navigate('InApp', { screen: 'NotificationSettings' }),
+    },
   ];
 
   const lawyerStats = user?.role === USER_ROLES.LAWYER ? [
-    { label: 'Cases Completed', value: '45' },
-    { label: 'Client Rating', value: '4.8/5' },
-    { label: 'Years of Experience', value: '8' },
-    { label: 'Specialization', value: 'Civil Law' }
-  ] : null;
+    { label: 'Cases Won', value: '42', icon: 'trophy', color: '#FFD700' },
+    { label: 'Rating', value: '4.8', icon: 'star', color: '#FF9800' },
+    { label: 'Experience', value: '8 Yrs', icon: 'clock', color: '#2196F3' },
+    { label: 'Clients', value: '156', icon: 'account-group', color: '#4CAF50' },
+  ] : [
+    { label: 'Cases Filed', value: '12', icon: 'file-document', color: '#2196F3' },
+    { label: 'Consultations', value: '28', icon: 'chat', color: '#4CAF50' },
+    { label: 'Documents', value: '45', icon: 'folder', color: '#FF9800' },
+  ];
 
-  return (
-    <ScrollView style={styles.container}>
-      {/* Profile Header */}
-      <Surface style={styles.headerCard}>
-        <View style={styles.profileHeader}>
-          <Avatar.Text 
-            size={80} 
-            label={user?.name?.charAt(0) || 'U'} 
-            style={styles.avatar}
-          />
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>{user?.name || 'User Name'}</Text>
-            <Paragraph style={styles.email}>{user?.email}</Paragraph>
-            <Text style={styles.role}>
-              {user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client'}
-            </Text>
+  const ProfileHeader = () => (
+    <View style={styles.headerContainer}>
+      <LinearGradient
+        colors={colors.gradient.primary}
+        start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        style={styles.gradientHeader}
+      >
+        {/* Floating particles effect background */}
+                  <View style={styles.particleContainer}>
+                    <View style={[styles.particle, styles.particle1]} />
+                    <View style={[styles.particle, styles.particle2]} />
+                    <View style={[styles.particle, styles.particle3]} />
+                  </View>
+        <View style={styles.headerContent}>
+          <View style={styles.avatarContainer}>
+            <Avatar.Text
+              size={90}
+              label={user?.name?.charAt(0) || 'U'}
+              style={styles.avatar}
+              labelStyle={styles.avatarLabel}
+            />
+            <TouchableOpacity style={styles.editAvatarBtn}>
+              <MaterialCommunityIcons name="camera" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.headerInfo}>
+            <Text style={styles.userName}>{user?.name || 'User Name'}</Text>
+            <View style={styles.roleContainer}>
+              <Badge size={20} style={styles.roleBadge}>
+                {user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client'}
+              </Badge>
+              {user?.role === USER_ROLES.LAWYER && (
+                <MaterialCommunityIcons 
+                  name="check-decagram" 
+                  size={18} 
+                  color="#4CAF50" 
+                  style={styles.verifiedIcon}
+                />
+              )}
+            </View>
+            <Text style={styles.userEmail}>{user?.email}</Text>
+            {user?.role === USER_ROLES.LAWYER && (
+              <Text style={styles.specialization}>Civil Law Specialist</Text>
+            )}
           </View>
         </View>
-        
-        <Button 
-          mode="outlined" 
-          icon="account-edit"
-          style={styles.editButton}
-          onPress={() => navigation.navigate('InApp', { screen: 'EditProfile' })}
-        >
-          Edit Profile
-        </Button>
-      </Surface>
+      </LinearGradient>
+    </View>
+  );
 
-      {/* Lawyer Statistics */}
-      {lawyerStats && (
-        <Card style={styles.statsCard}>
-          <Card.Content>
-            <Text style={styles.statsTitle}>Professional Summary</Text>
-            <View style={styles.statsGrid}>
-              {lawyerStats.map((stat, index) => (
-                <View key={index} style={styles.statItem}>
-                  <Text style={styles.statValue}>{stat.value}</Text>
-                  <Text style={styles.statLabel}>{stat.label}</Text>
-                </View>
-              ))}
+  const QuickActions = () => (
+    <Surface style={styles.quickActionsContainer}>
+      <Text style={styles.sectionTitle}>Quick Actions</Text>
+      <View style={styles.actionsGrid}>
+        {quickActions.map((action, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.actionItem}
+            onPress={action.onPress}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.actionIconContainer, { backgroundColor: action.color }]}>
+              <MaterialCommunityIcons name={action.icon} size={24} color="#fff" />
             </View>
-          </Card.Content>
-        </Card>
-      )}
+            <Text style={styles.actionTitle}>{action.title}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </Surface>
+  );
 
-      {/* Quick Settings */}
-      <Card style={styles.settingsCard}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Quick Settings</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
+  const StatsSection = () => (
+    <Surface style={styles.statsContainer}>
+      <View style={styles.statsTitleContainer}>
+        <Text style={styles.sectionTitle}>
+          {user?.role === USER_ROLES.LAWYER ? 'Professional Stats' : 'Your Activity'}
+        </Text>
+        <TouchableOpacity>
+          <MaterialCommunityIcons name="chart-line" size={20} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.statsGrid}>
+        {lawyerStats.map((stat, index) => (
+          <View key={index} style={styles.statCard}>
+            <View style={styles.statIconContainer}>
               <MaterialCommunityIcons 
-                name="bell" 
-                size={24} 
+                name={stat.icon} 
+                size={20} 
+                color={stat.color} 
+              />
+            </View>
+            <Text style={styles.statValue}>{stat.value}</Text>
+            <Text style={styles.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+    </Surface>
+  );
+
+  const SettingsSection = () => (
+    <Surface style={styles.settingsContainer}>
+      <Text style={styles.sectionTitle}>Preferences</Text>
+      
+      <View style={styles.settingRow}>
+        <View style={styles.settingLeft}>
+          <View style={[styles.settingIconBg, { backgroundColor: '#FF9800' }]}>
+            <MaterialCommunityIcons name="bell" size={20} color="#fff" />
+          </View>
+          <View style={styles.settingText}>
+            <Text style={styles.settingTitle}>Push Notifications</Text>
+            <Text style={styles.settingSubtitle}>Get updates about your cases</Text>
+          </View>
+        </View>
+        <Switch
+          value={notificationsEnabled}
+          onValueChange={setNotificationsEnabled}
+          thumbColor={notificationsEnabled ? colors.primary : '#f4f3f4'}
+          trackColor={{ false: '#767577', true: colors.primary + '40' }}
+        />
+      </View>
+
+      <Divider style={styles.settingDivider} />
+
+      <View style={styles.settingRow}>
+        <View style={styles.settingLeft}>
+          <View style={[styles.settingIconBg, { backgroundColor: '#673AB7' }]}>
+            <MaterialCommunityIcons name="theme-light-dark" size={20} color="#fff" />
+          </View>
+          <View style={styles.settingText}>
+            <Text style={styles.settingTitle}>Dark Mode</Text>
+            <Text style={styles.settingSubtitle}>Switch to dark theme</Text>
+          </View>
+        </View>
+        <Switch
+          value={isDarkMode}
+          onValueChange={() => dispatch(toggleTheme())}
+          thumbColor={isDarkMode ? colors.primary : '#f4f3f4'}
+          trackColor={{ false: '#767577', true: colors.primary + '40' }}
+        />
+      </View>
+    </Surface>
+  );
+
+  const MenuSection = () => (
+    <Surface style={styles.menuContainer}>
+      <Text style={styles.sectionTitle}>More Options</Text>
+      {menuOptions.map((option, index) => (
+        <TouchableOpacity
+          key={index}
+          style={styles.menuItem}
+          onPress={option.onPress}
+          activeOpacity={0.7}
+        >
+          <View style={styles.menuLeft}>
+            <View style={styles.menuIconContainer}>
+              <MaterialCommunityIcons 
+                name={option.icon} 
+                size={20} 
                 color={colors.primary} 
               />
-              <View style={styles.settingText}>
-                <Text style={styles.settingTitle}>Push Notifications</Text>
-                <Text style={styles.settingDescription}>
-                  Receive updates about your cases and messages
-                </Text>
-              </View>
             </View>
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
-            />
+            <View style={styles.menuText}>
+              <Text style={styles.menuTitle}>{option.title}</Text>
+              <Text style={styles.menuSubtitle}>{option.subtitle}</Text>
+            </View>
           </View>
-          
-          <Divider style={styles.divider} />
-          
-          <List.Item
-            title="Dark Mode"
-            description="Switch to dark theme"
-            left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
-            right={() => (
-              <Switch
-                value={isDarkMode}
-                onValueChange={() => dispatch(toggleTheme())}
-              />
-            )}
+          <MaterialCommunityIcons 
+            name={option.rightIcon} 
+            size={20} 
+            color={colors.textSecondary} 
           />
-        </Card.Content>
-      </Card>
+        </TouchableOpacity>
+      ))}
+    </Surface>
+  );
 
-      {/* Menu Options */}
-      <Card style={styles.menuCard}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>More Options</Text>
-          {profileOptions.map((option, index) => (
-            <List.Item
-              key={index}
-              title={option.title}
-              description={option.description}
-              left={props => <List.Icon {...props} icon={option.icon} />}
-              right={props => <List.Icon {...props} icon="chevron-right" />}
-              onPress={option.onPress}
-              style={styles.menuItem}
-            />
-          ))}
-        </Card.Content>
-      </Card>
+  return (
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      
+      <ProfileHeader />
+      <QuickActions />
+      <StatsSection />
+      <SettingsSection />
+      <MenuSection />
 
       {/* Logout Button */}
-      <Button
-        mode="contained"
-        icon="logout"
+      <TouchableOpacity 
+        style={styles.logoutContainer}
         onPress={handleLogout}
-        style={styles.logoutButton}
-        buttonColor={colors.error}
+        activeOpacity={0.8}
       >
-        Logout
-      </Button>
+        <MaterialCommunityIcons name="logout" size={20} color="#fff" />
+        <Text style={styles.logoutText}>Sign Out</Text>
+      </TouchableOpacity>
+
+      <View style={styles.bottomPadding} />
     </ScrollView>
   );
 }
@@ -196,120 +311,297 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  headerCard: {
-    margin: 16,
-    padding: 20,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  
+  // Header Styles
+  headerContainer: {
     marginBottom: 20,
   },
+  gradientHeader: {
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
   avatar: {
-    backgroundColor: colors.primary,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
-  profileInfo: {
-    marginLeft: 20,
-    flex: 1,
-  },
-  name: {
-    fontSize: 20,
+  avatarLabel: {
+    fontSize: 32,
     fontWeight: 'bold',
-    color: colors.text,
+    color: '#fff',
   },
-  email: {
-    color: colors.textSecondary,
+  editAvatarBtn: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: colors.primary,
+    borderRadius: 15,
+    width: 30,
+    height: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
-  role: {
-    fontSize: 14,
+  headerInfo: {
+    alignItems: 'center',
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  roleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  roleBadge: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
     color: colors.primary,
-    fontWeight: '500',
-    marginTop: 4,
   },
-  editButton: {
-    borderColor: colors.primary,
+    particleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  statsCard: {
+  particle: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(212, 175, 55, 0.3)',
+  },
+  particle1: {
+    top: '20%',
+    left: '15%',
+  },
+  particle2: {
+    top: '60%',
+    right: '20%',
+  },
+  particle3: {
+    top: '40%',
+    left: '70%',
+  },
+  verifiedIcon: {
+    marginLeft: 8,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    marginBottom: 4,
+  },
+  specialization: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    fontStyle: 'italic',
+  },
+
+  // Quick Actions
+  quickActionsContainer: {
     marginHorizontal: 16,
     marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
     elevation: 2,
   },
-  statsTitle: {
-    fontSize: 18,
-    marginBottom: 16,
+  actionsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  actionItem: {
+    alignItems: 'center',
+    flex: 1,
+    paddingVertical: 10,
+  },
+  actionIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionTitle: {
+    fontSize: 12,
     color: colors.text,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // Stats Section
+  statsContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    elevation: 2,
+  },
+  statsTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  statItem: {
+  statCard: {
     width: '48%',
+    backgroundColor: colors.background,
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border || '#E0E0E0',
+  },
+  statIconContainer: {
+    marginBottom: 8,
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: colors.primary,
+    color: colors.text,
+    marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
     color: colors.textSecondary,
+    textAlign: 'center',
   },
-  settingsCard: {
+
+  // Settings Section
+  settingsContainer: {
     marginHorizontal: 16,
     marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
     elevation: 2,
   },
-  menuCard: {
-    marginHorizontal: 16,
-    marginBottom: 16,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    marginBottom: 16,
-    color: colors.text,
-  },
-  settingItem: {
+  settingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 12,
   },
-  settingInfo: {
+  settingLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  settingIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
   settingText: {
-    marginLeft: 16,
     flex: 1,
   },
   settingTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.text,
+    marginBottom: 2,
   },
-  settingDescription: {
+  settingSubtitle: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginTop: 2,
   },
-  divider: {
-    marginVertical: 8,
+  settingDivider: {
+    marginVertical: 12,
+    backgroundColor: colors.border || '#E0E0E0',
+  },
+
+  // Menu Section
+  menuContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 20,
+    borderRadius: 16,
+    elevation: 2,
   },
   menuItem: {
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border || '#F0F0F0',
   },
-  logoutButton: {
-    margin: 16,
-    paddingVertical: 8,
+  menuLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  menuText: {
+    flex: 1,
+  },
+  menuTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  menuSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+
+  // Common Styles
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
+
+  // Logout Button
+  logoutContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F44336',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 16,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  logoutText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  bottomPadding: {
+    height: 40,
   },
 });

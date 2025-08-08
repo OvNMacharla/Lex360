@@ -17,6 +17,7 @@ export const SCREEN_NAMES = {
   
   // Lawyer Screens
   LAWYER_DASHBOARD: 'LawyerDashboard',
+  CASE_MANAGEMENT: 'CaseManagement',
   
   // Client Screens
   CLIENT_DASHBOARD: 'ClientDashboard',
