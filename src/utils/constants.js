@@ -33,6 +33,14 @@ export const SCREEN_NAMES = {
   SETTING: 'SettingsScreen',
   ABOUT: 'AboutScreen',
   FEEDBACK: 'FeedbackScreen',
+  ANALYTICS: 'AnalyticsScreen',
+  REVENUE: 'RevenueScreen',
+  NOTIFICATIONS: 'Notifications',
+  CONNECTIONS: 'Connections',
+  JOBS: 'Jobs',
+  CHAT: 'ChatScreen',
+  FEED: 'Feed',
+  PROFILE: 'ProfileScreen',
 };
 
 export const API_BASE_URL = __DEV__ 

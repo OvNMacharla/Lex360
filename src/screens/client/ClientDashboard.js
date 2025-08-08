@@ -6,39 +6,76 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
-  Platform,
   Animated,
   RefreshControl,
+  Platform,
+  FlatList,
 } from 'react-native';
 import {
+  Card,
+  Title,
+  Paragraph,
+  Button,
+  Avatar,
+  Chip,
   Text,
   Surface,
-  Avatar,
+  ProgressBar,
   Badge,
-  Button,
+  Divider,
+  Modal,
+  Portal,
+  Searchbar,
 } from 'react-native-paper';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSelector } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
-
-import { colors } from '../../styles/colors';
+import { BlurView } from 'expo-blur';
 import { SCREEN_NAMES } from '../../utils/constants';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Ultra-premium color palette
+const colors = {
+  primary: '#667eea',
+  primaryDark: '#5a67d8',
+  secondary: '#764ba2',
+  tertiary: '#f093fb',
+  accent: '#4ECDC4',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
+  background: '#F8F9FA',
+  surface: '#FFFFFF',
+  surfaceVariant: '#F1F3F8',
+  text: '#1A202C',
+  textSecondary: '#64748B',
+  textTertiary: '#94A3B8',
+  cardShadow: 'rgba(102, 126, 234, 0.15)',
+  glassMorphism: 'rgba(255, 255, 255, 0.9)',
+  gradient: {
+    primary: ['#667eea', '#764ba2'],
+    secondary: ['#f093fb', '#f5576c'],
+    success: ['#4ECDC4', '#44A08D'],
+    info: ['#667eea', '#764ba2'],
+    warning: ['#FFD89B', '#19547B'],
+    glass: ['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.8)']
+  }
+};
 
 export default function ClientDashboard() {
   const navigation = useNavigation();
   const { user } = useSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scrollY] = useState(new Animated.Value(0));
+  const [showFindLawyersModal, setShowFindLawyersModal] = useState(false);
+  const [showCaseStatusModal, setShowCaseStatusModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+    // Animation on mount
   }, []);
 
   const onRefresh = React.useCallback(() => {
@@ -48,54 +85,80 @@ export default function ClientDashboard() {
     }, 2000);
   }, []);
 
+  // Mock data
+  const stats = [
+    {
+      label: 'Active Cases',
+      value: '5',
+      change: '+2',
+      trend: 'up',
+      icon: 'gavel',
+      gradient: colors.gradient.primary,
+      glowColor: colors.primary,
+      description: 'Ongoing legal matters'
+    },
+    {
+      label: 'Consultations',
+      value: '12',
+      change: '+4',
+      trend: 'up',
+      icon: 'calendar-star',
+      gradient: colors.gradient.success,
+      glowColor: colors.accent,
+      description: 'Completed sessions'
+    },
+    {
+      label: 'Documents',
+      value: '8',
+      change: '+1',
+      trend: 'up',
+      icon: 'file-document-multiple',
+      gradient: colors.gradient.info,
+      glowColor: colors.info,
+      description: 'Legal documents'
+    },
+    {
+      label: 'Satisfaction',
+      value: '4.9★',
+      change: '+0.2',
+      trend: 'up',
+      icon: 'star',
+      gradient: colors.gradient.warning,
+      glowColor: colors.warning,
+      description: 'Service rating'
+    },
+  ];
+
   const quickActions = [
     {
       title: 'Find Lawyers',
       icon: 'account-search',
       description: 'Browse verified lawyers',
       screen: SCREEN_NAMES.FIND_LAWYERS,
-      color: '#4285F4',
-      gradient: ['#4285F4', '#34A853'],
+      gradient: colors.gradient.primary,
+      action: () => setShowFindLawyersModal(true)
     },
     {
       title: 'AI Assistant',
-      icon: 'robot',
+      icon: 'robot-excited',
       description: 'Get instant legal help',
       screen: SCREEN_NAMES.AI_CHAT,
-      color: '#FF6B6B',
-      gradient: ['#FF6B6B', '#FFE66D'],
+      gradient: colors.gradient.secondary,
     },
     {
-      title: 'Consultations',
-      icon: 'calendar-check',
-      description: 'View appointments',
-      screen: SCREEN_NAMES.MY_CONSULTATIONS,
-      color: '#4ECDC4',
-      gradient: ['#4ECDC4', '#44A08D'],
+      title: 'Case Status',
+      icon: 'clipboard-check',
+      description: 'Track your cases',
+      screen: SCREEN_NAMES.CASE_STATUS,
+      gradient: colors.gradient.success,
+      action: () => setShowCaseStatusModal(true)
     },
     {
       title: 'Documents',
       icon: 'file-document',
       description: 'Manage documents',
       screen: SCREEN_NAMES.LEGAL_DOCUMENTS,
-      color: '#9B59B6',
-      gradient: ['#9B59B6', '#8E44AD'],
-    },
-    {
-      title: 'Case Status',
-      icon: 'gavel',
-      description: 'Track your cases',
-      screen: SCREEN_NAMES.CASE_STATUS,
-      color: '#E67E22',
-      gradient: ['#E67E22', '#D35400'],
-    },
-    {
-      title: 'Legal News',
-      icon: 'newspaper',
-      description: 'Stay updated',
-      screen: SCREEN_NAMES.LEGAL_NEWS,
-      color: '#3498DB',
-      gradient: ['#3498DB', '#2980B9'],
+      gradient: colors.gradient.info,
     },
   ];
 
@@ -104,644 +167,1353 @@ export default function ClientDashboard() {
       id: 1,
       type: 'consultation',
       title: 'Consultation with Adv. Sharma',
-      subtitle: 'Property Law Discussion',
+      subtitle: 'Property Law Discussion - Contract Review',
       time: '2 hours ago',
       status: 'completed',
       icon: 'account-tie',
       priority: 'high',
+      value: '₹2,500',
+      progress: 100
     },
     {
       id: 2,
-      type: 'question',
-      title: 'Property dispute query answered',
-      subtitle: 'AI Assistant Response',
+      type: 'case',
+      title: 'Property Dispute Case Update',
+      subtitle: 'Court hearing scheduled for next week',
       time: '1 day ago',
-      status: 'answered',
-      icon: 'chat-question',
-      priority: 'medium',
+      status: 'in_progress',
+      icon: 'gavel',
+      priority: 'high',
+      value: '₹15,000',
+      progress: 65
     },
     {
       id: 3,
       type: 'document',
-      title: 'Rental agreement uploaded',
-      subtitle: 'Document Review Pending',
+      title: 'Rental Agreement Review',
+      subtitle: 'Document analysis completed',
       time: '3 days ago',
       status: 'reviewed',
-      icon: 'file-upload',
-      priority: 'low',
+      icon: 'file-document-edit',
+      priority: 'medium',
+      value: '₹1,200',
+      progress: 100
     },
     {
       id: 4,
-      type: 'payment',
-      title: 'Consultation fee processed',
-      subtitle: '₹2,500 paid to Adv. Sharma',
+      type: 'ai_query',
+      title: 'Legal Query Resolved',
+      subtitle: 'AI Assistant provided detailed response',
       time: '5 days ago',
-      status: 'completed',
-      icon: 'credit-card',
+      status: 'answered',
+      icon: 'chat-question',
       priority: 'low',
+      value: 'Free',
+      progress: 100
     },
   ];
 
-  const legalTips = [
+  const caseStatusData = [
     {
-      title: 'Contract Reading',
-      content: 'Always read the fine print before signing any contract. Pay special attention to termination clauses and penalty terms.',
-      category: 'Contracts',
+      id: 'CS001',
+      title: 'Property Dispute - Sector 18',
+      lawyer: 'Adv. Priya Sharma',
+      status: 'in_progress',
+      progress: 65,
+      nextHearing: '2025-01-15',
+      priority: 'high',
+      value: '₹25,000',
+      description: 'Boundary dispute with neighbor regarding property lines'
     },
     {
-      title: 'Property Rights',
-      content: 'Verify property documents thoroughly before making any purchase. Check for clear titles and pending litigation.',
-      category: 'Property',
+      id: 'CS002',
+      title: 'Employment Termination Case',
+      lawyer: 'Adv. Rajesh Kumar',
+      status: 'review',
+      progress: 30,
+      nextHearing: '2025-01-22',
+      priority: 'medium',
+      value: '₹18,000',
+      description: 'Wrongful termination compensation claim'
     },
     {
-      title: 'Employment Law',
-      content: 'Keep records of all workplace communications and incidents. Documentation is crucial for employment disputes.',
-      category: 'Employment',
-    },
+      id: 'CS003',
+      title: 'Consumer Complaint - Banking',
+      lawyer: 'Adv. Meera Patel',
+      status: 'completed',
+      progress: 100,
+      nextHearing: null,
+      priority: 'low',
+      value: '₹8,000',
+      description: 'Banking service charges dispute resolved'
+    }
   ];
 
-  const [currentTip, setCurrentTip] = useState(0);
+  const featuredLawyers = [
+    {
+      id: 1,
+      name: 'Adv. Priya Sharma',
+      specialization: 'Property Law',
+      experience: '12 years',
+      rating: 4.9,
+      reviews: 234,
+      fee: '₹2,500/hr',
+      image: null,
+      verified: true,
+      languages: ['Hindi', 'English'],
+      availability: 'Available Today'
+    },
+    {
+      id: 2,
+      name: 'Adv. Rajesh Kumar',
+      specialization: 'Corporate Law',
+      experience: '15 years',
+      rating: 4.8,
+      reviews: 189,
+      fee: '₹3,000/hr',
+      image: null,
+      verified: true,
+      languages: ['Hindi', 'English', 'Marathi'],
+      availability: 'Available Tomorrow'
+    },
+    {
+      id: 3,
+      name: 'Adv. Meera Patel',
+      specialization: 'Family Law',
+      experience: '8 years',
+      rating: 4.7,
+      reviews: 156,
+      fee: '₹2,000/hr',
+      image: null,
+      verified: true,
+      languages: ['Hindi', 'English', 'Gujarati'],
+      availability: 'Available Today'
+    }
+  ];
 
-  const handleAction = (screenName) => {
-    if (screenName) {
+  const handleAction = (screenName, customAction) => {
+    if (customAction) {
+      customAction();
+    } else if (screenName) {
       navigation.navigate('InApp', { screen: screenName });
     }
   };
 
-  const WelcomeHeader = () => {
-    const currentHour = new Date().getHours();
-    const getGreeting = () => {
-      if (currentHour < 12) return 'Good morning';
-      if (currentHour < 17) return 'Good afternoon';
-      return 'Good evening';
-    };
-
-    return (
-      <LinearGradient
-        colors={['#667eea', '#764ba2']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <View style={styles.userInfo}>
-              <Avatar.Text
-                size={50}
-                label={user?.name?.charAt(0) || 'U'}
-                style={styles.avatar}
-                labelStyle={styles.avatarLabel}
-              />
-              <View style={styles.greetingContainer}>
-                <Text style={styles.greeting}>{getGreeting()}</Text>
-                <Text style={styles.userName}>{user?.name || 'User'}!</Text>
-                <Text style={styles.tagline}>How can we help you today?</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.notificationBtn}>
-              <MaterialCommunityIcons name="bell" size={24} color="#fff" />
-              <Badge size={10} style={styles.notificationBadge} />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>5</Text>
-              <Text style={styles.statLabel}>Active Cases</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>12</Text>
-              <Text style={styles.statLabel}>Consultations</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>8</Text>
-              <Text style={styles.statLabel}>Documents</Text>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
-    );
+  const getCurrentGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
   };
 
-  const QuickActions = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <TouchableOpacity onPress={() => {}}>
-          <Text style={styles.seeAllText}>See All</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.actionsScroll}
-      >
-        {quickActions.map((action, index) => (
-          <TouchableOpacity
-            key={index}
-            style={styles.actionCard}
-            onPress={() => handleAction(action.screen)}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={action.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.actionGradient}
-            >
-              <MaterialCommunityIcons
-                name={action.icon}
-                size={28}
-                color="#fff"
-              />
-            </LinearGradient>
-            <Text style={styles.actionTitle}>{action.title}</Text>
-            <Text style={styles.actionDescription}>{action.description}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  const CustomProgressBar = ({ progress, color, width: barWidth }) => (
-    <View style={[styles.progressBarContainer, { width: barWidth }]}>
-      <View style={[styles.progressBarFill, { 
-        width: `${progress * 100}%`, 
-        backgroundColor: color 
-      }]} />
-    </View>
-  );
-
-  const ProgressSection = () => (
-    <Surface style={styles.progressCard}>
-      <View style={styles.progressHeader}>
-        <MaterialCommunityIcons name="chart-line" size={24} color={colors.primary} />
-        <Text style={styles.progressTitle}>Your Progress</Text>
-      </View>
-      
-      <View style={styles.progressItem}>
-        <View style={styles.progressInfo}>
-          <Text style={styles.progressLabel}>Case Resolution</Text>
-          <Text style={styles.progressPercent}>75%</Text>
-        </View>
-        <CustomProgressBar 
-          progress={0.75} 
-          width={width - 80} 
-          color={colors.primary}
-        />
-      </View>
-
-      <View style={styles.progressItem}>
-        <View style={styles.progressInfo}>
-          <Text style={styles.progressLabel}>Document Completion</Text>
-          <Text style={styles.progressPercent}>60%</Text>
-        </View>
-        <CustomProgressBar 
-          progress={0.6} 
-          width={width - 80} 
-          color="#4CAF50"
-        />
-      </View>
-    </Surface>
-  );
-
-  const RecentActivity = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        <TouchableOpacity>
-          <Text style={styles.seeAllText}>View All</Text>
-        </TouchableOpacity>
-      </View>
-      
-      {recentActivity.map((activity, index) => (
-        <TouchableOpacity key={activity.id} style={styles.activityCard} activeOpacity={0.7}>
-          <View style={styles.activityLeft}>
-            <View style={[styles.activityIcon, { backgroundColor: getStatusColor(activity.status) + '15' }]}>
-              <MaterialCommunityIcons
-                name={activity.icon}
-                size={20}
-                color={getStatusColor(activity.status)}
-              />
-            </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>{activity.title}</Text>
-              <Text style={styles.activitySubtitle}>{activity.subtitle}</Text>
-              <Text style={styles.activityTime}>{activity.time}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.activityRight}>
-            <Badge 
-              size={8} 
-              style={[styles.priorityBadge, { backgroundColor: getPriorityColor(activity.priority) }]} 
-            />
-            <MaterialCommunityIcons name="chevron-right" size={16} color={colors.textSecondary} />
-          </View>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  const LegalTipCard = () => {
-    const tip = legalTips[currentTip];
-    
-    return (
-      <Surface style={styles.tipCard}>
-        <LinearGradient
-          colors={['#FF6B6B15', '#4ECDC415']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.tipGradient}
-        >
-          <View style={styles.tipHeader}>
-            <View style={styles.tipIconContainer}>
-              <MaterialCommunityIcons name="lightbulb" size={20} color="#FFD700" />
-            </View>
-            <View style={styles.tipHeaderText}>
-              <Text style={styles.tipTitle}>Legal Tip</Text>
-              <Text style={styles.tipCategory}>{tip.category}</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={() => setCurrentTip((prev) => (prev + 1) % legalTips.length)}
-              style={styles.nextTipBtn}
-            >
-              <MaterialCommunityIcons name="refresh" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-          
-          <Text style={styles.tipContent}>{tip.content}</Text>
-          
-          <View style={styles.tipFooter}>
-            <TouchableOpacity style={styles.tipAction}>
-              <Text style={styles.tipActionText}>Learn More</Text>
-              <MaterialCommunityIcons name="arrow-right" size={14} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </Surface>
-    );
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return colors.success;
+      case 'in_progress': return colors.info;
+      case 'review': return colors.warning;
+      case 'answered': return colors.accent;
+      default: return colors.textSecondary;
+    }
   };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return colors.error;
+      case 'medium': return colors.warning;
+      case 'low': return colors.success;
+      default: return colors.textSecondary;
+    }
+  };
+
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.9],
+    extrapolate: 'clamp',
+  });
+
+  // Find Lawyers Modal Component
+  const FindLawyersModal = () => (
+    <Portal>
+      <Modal
+        visible={showFindLawyersModal}
+        onDismiss={() => setShowFindLawyersModal(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <Surface style={styles.modalSurface}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Find Lawyers</Text>
+            <TouchableOpacity onPress={() => setShowFindLawyersModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <Searchbar
+            placeholder="Search lawyers by specialization"
+            onChangeText={setSearchQuery}
+            value={searchQuery}
+            style={styles.searchBar}
+          />
+          
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {featuredLawyers.map((lawyer) => (
+              <TouchableOpacity key={lawyer.id} style={styles.lawyerCard} activeOpacity={0.9}>
+                <View style={styles.lawyerInfo}>
+                  <View style={styles.lawyerAvatar}>
+                    <Avatar.Text
+                      size={50}
+                      label={lawyer.name.split(' ')[1]?.charAt(0) || 'L'}
+                      style={{ backgroundColor: colors.primary }}
+                      labelStyle={{ color: 'white', fontWeight: '700' }}
+                    />
+                    {lawyer.verified && (
+                      <View style={styles.verifiedBadge}>
+                        <MaterialCommunityIcons name="check" size={12} color="white" />
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={styles.lawyerDetails}>
+                    <Text style={styles.lawyerName}>{lawyer.name}</Text>
+                    <Text style={styles.lawyerSpecialization}>{lawyer.specialization}</Text>
+                    
+                    <View style={styles.lawyerMeta}>
+                      <View style={styles.ratingContainer}>
+                        <MaterialCommunityIcons name="star" size={14} color="#FFD700" />
+                        <Text style={styles.ratingText}>{lawyer.rating}</Text>
+                        <Text style={styles.reviewsText}>({lawyer.reviews})</Text>
+                      </View>
+                      
+                      <View style={styles.experienceContainer}>
+                        <MaterialCommunityIcons name="briefcase" size={14} color={colors.textSecondary} />
+                        <Text style={styles.experienceText}>{lawyer.experience}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.lawyerFooter}>
+                      <Text style={styles.feeText}>{lawyer.fee}</Text>
+                      <Chip
+                        mode="flat"
+                        compact
+                        style={[styles.availabilityChip, { backgroundColor: colors.success + '20' }]}
+                        textStyle={[styles.availabilityText, { color: colors.success }]}
+                      >
+                        {lawyer.availability}
+                      </Chip>
+                    </View>
+                  </View>
+                </View>
+                
+                <Button
+                  mode="contained"
+                  onPress={() => {}}
+                  style={styles.consultButton}
+                  labelStyle={styles.consultButtonText}
+                >
+                  Book Consultation
+                </Button>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Surface>
+      </Modal>
+    </Portal>
+  );
+
+  // Case Status Modal Component
+  const CaseStatusModal = () => (
+    <Portal>
+      <Modal
+        visible={showCaseStatusModal}
+        onDismiss={() => setShowCaseStatusModal(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <Surface style={styles.modalSurface}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Case Status</Text>
+            <TouchableOpacity onPress={() => setShowCaseStatusModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {caseStatusData.map((caseItem) => (
+              <Surface key={caseItem.id} style={styles.caseCard}>
+                <View style={styles.caseHeader}>
+                  <View style={styles.caseIdContainer}>
+                    <Text style={styles.caseId}>#{caseItem.id}</Text>
+                    <View style={[
+                      styles.statusIndicator,
+                      { backgroundColor: getStatusColor(caseItem.status) + '20' }
+                    ]}>
+                      <Text style={[
+                        styles.statusText,
+                        { color: getStatusColor(caseItem.status) }
+                      ]}>
+                        {caseItem.status.replace('_', ' ').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.caseValue}>
+                    <Text style={styles.caseValueText}>{caseItem.value}</Text>
+                  </View>
+                </View>
+                
+                <Text style={styles.caseTitle}>{caseItem.title}</Text>
+                <Text style={styles.caseDescription}>{caseItem.description}</Text>
+                
+                <View style={styles.caseMeta}>
+                  <View style={styles.lawyerInfo}>
+                    <MaterialCommunityIcons name="account-tie" size={16} color={colors.textSecondary} />
+                    <Text style={styles.lawyerName}>{caseItem.lawyer}</Text>
+                  </View>
+                  
+                  {caseItem.nextHearing && (
+                    <View style={styles.hearingInfo}>
+                      <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} />
+                      <Text style={styles.hearingDate}>
+                        Next: {new Date(caseItem.nextHearing).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                
+                <View style={styles.progressContainer}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>Progress</Text>
+                    <Text style={styles.progressPercent}>{caseItem.progress}%</Text>
+                  </View>
+                  <ProgressBar
+                    progress={caseItem.progress / 100}
+                    color={getStatusColor(caseItem.status)}
+                    style={styles.progressBar}
+                  />
+                </View>
+              </Surface>
+            ))}
+          </ScrollView>
+        </Surface>
+      </Modal>
+    </Portal>
+  );
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <ScrollView 
+      {/* Premium Header */}
+      <Animated.View style={[styles.headerContainer, { opacity: headerOpacity }]}>
+        <LinearGradient
+          colors={colors.gradient.primary}
+          style={styles.header}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.particleContainer}>
+            <View style={[styles.particle, styles.particle1]} />
+            <View style={[styles.particle, styles.particle2]} />
+            <View style={[styles.particle, styles.particle3]} />
+          </View>
+          
+          <View style={styles.headerContent}>
+            <View style={styles.userSection}>
+              <View style={styles.avatarContainer}>
+                <LinearGradient
+                  colors={['#FFD700', '#FFA500']}
+                  style={styles.avatarGradient}
+                >
+                  <Avatar.Text
+                    size={56}
+                    label={user?.name?.charAt(0) || 'U'}
+                    style={styles.avatar}
+                    labelStyle={styles.avatarLabel}
+                  />
+                </LinearGradient>
+                <View style={styles.statusIndicator} />
+              </View>
+              
+              <View style={styles.userDetails}>
+                <Text style={styles.welcomeText}>{getCurrentGreeting()} ☀️</Text>
+                <Text style={styles.userName}>{user?.name || 'John Doe'}</Text>
+                <View style={styles.expertiseBadge}>
+                  <MaterialCommunityIcons name="shield-check" size={12} color="#4ECDC4" />
+                  <Text style={styles.expertiseText}>Verified Client</Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.headerActions}>
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+                  style={styles.actionButtonGradient}
+                >
+                  <MaterialCommunityIcons name="magnify" size={20} color="white" />
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+                  style={styles.actionButtonGradient}
+                >
+                  <MaterialCommunityIcons name="bell" size={20} color="white" />
+                  <Badge size={8} style={styles.notificationBadge} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </LinearGradient>
+        
+        {/* Glass Summary Card */}
+        <View style={styles.summaryCardContainer}>
+          <BlurView intensity={95} tint="light" style={styles.glassSummary}>
+            <LinearGradient
+              colors={colors.gradient.glass}
+              style={styles.summaryGradient}
+            >
+              <View style={styles.summaryContent}>
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryIconContainer}>
+                    <LinearGradient
+                      colors={colors.gradient.primary}
+                      style={styles.summaryIcon}
+                    >
+                      <MaterialCommunityIcons name="gavel" size={16} color="white" />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.summaryValue}>5</Text>
+                  <Text style={styles.summaryLabel}>Active Cases</Text>
+                </View>
+                
+                <View style={styles.summaryDivider} />
+                
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryIconContainer}>
+                    <LinearGradient
+                      colors={colors.gradient.success}
+                      style={styles.summaryIcon}
+                    >
+                      <MaterialCommunityIcons name="calendar-check" size={16} color="white" />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.summaryValue}>12</Text>
+                  <Text style={styles.summaryLabel}>Consultations</Text>
+                </View>
+                
+                <View style={styles.summaryDivider} />
+                
+                <View style={styles.summaryItem}>
+                  <View style={styles.summaryIconContainer}>
+                    <LinearGradient
+                      colors={colors.gradient.info}
+                      style={styles.summaryIcon}
+                    >
+                      <MaterialCommunityIcons name="star" size={16} color="white" />
+                    </LinearGradient>
+                  </View>
+                  <Text style={styles.summaryValue}>4.9</Text>
+                  <Text style={styles.summaryLabel}>Satisfaction</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </BlurView>
+        </View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <WelcomeHeader />
-        <QuickActions />
-        <ProgressSection />
-        <RecentActivity />
-        <LegalTipCard />
-        
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-    </Animated.View>
+        {/* Premium Statistics */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Your Legal Journey</Text>
+            <TouchableOpacity style={styles.viewAllButton}>
+              <Text style={styles.viewAllText}>View All</Text>
+              <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.statsContainer}
+            decelerationRate="fast"
+          >
+            {stats.map((stat, index) => (
+              <TouchableOpacity key={index} activeOpacity={0.9}>
+                <View style={styles.statCardContainer}>
+                  <LinearGradient
+                    colors={stat.gradient}
+                    style={styles.statCard}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <View style={styles.statGlow} />
+                    
+                    <View style={styles.statHeader}>
+                      <View style={styles.statIconContainer}>
+                        <MaterialCommunityIcons
+                          name={stat.icon}
+                          size={24}
+                          color="rgba(255,255,255,0.9)"
+                        />
+                      </View>
+                      
+                      <View style={styles.trendContainer}>
+                        <MaterialCommunityIcons
+                          name="trending-up"
+                          size={12}
+                          color="#4ECDC4"
+                        />
+                        <Text style={styles.changeText}>{stat.change}</Text>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.statContent}>
+                      <Text style={styles.statValue}>{stat.value}</Text>
+                      <Text style={styles.statLabel}>{stat.label}</Text>
+                      <Text style={styles.statDescription}>{stat.description}</Text>
+                    </View>
+                  </LinearGradient>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsContainer}>
+            {quickActions.map((action, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.quickActionWrapper}
+                onPress={() => handleAction(action.screen, action.action)}
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={action.gradient}
+                  style={styles.quickActionCard}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.actionGlow} />
+                  
+                  <MaterialCommunityIcons
+                    name={action.icon}
+                    size={28}
+                    color="white"
+                  />
+                  
+                  <Text style={styles.quickActionTitle}>{action.title}</Text>
+                  <Text style={styles.quickActionDescription}>{action.description}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Recent Activity */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <TouchableOpacity style={styles.filterButton}>
+              <MaterialCommunityIcons name="filter-variant" size={16} color={colors.primary} />
+              <Text style={styles.filterText}>Filter</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {recentActivity.map((activity) => (
+            <TouchableOpacity key={activity.id} activeOpacity={0.95}>
+              <Surface style={styles.activityCard}>
+                <View style={styles.activityContent}>
+                  <View style={styles.activityMainInfo}>
+                    <View style={styles.activityIconSection}>
+                      <LinearGradient
+                        colors={[getStatusColor(activity.status), getStatusColor(activity.status) + '80']}
+                        style={styles.activityIconContainer}
+                      >
+                        <MaterialCommunityIcons
+                          name={activity.icon}
+                          size={20}
+                          color="white"
+                        />
+                      </LinearGradient>
+                    </View>
+                    
+                    <View style={styles.activityDetails}>
+                      <View style={styles.activityTitleRow}>
+                        <Text style={styles.activityTitle}>{activity.title}</Text>
+                        <View style={styles.activityValueContainer}>
+                          <Text style={styles.activityValue}>{activity.value}</Text>
+                        </View>
+                      </View>
+                      
+                      <Text style={styles.activitySubtitle}>{activity.subtitle}</Text>
+                      
+                      <View style={styles.activityMetaRow}>
+                        <View style={styles.timeContainer}>
+                          <MaterialCommunityIcons name="clock-outline" size={14} color={colors.textSecondary} />
+                          <Text style={styles.activityTime}>{activity.time}</Text>
+                        </View>
+                        
+                        <View style={styles.priorityIndicator}>
+                          <View style={[
+                            styles.priorityDot,
+                            { backgroundColor: getPriorityColor(activity.priority) }
+                          ]} />
+                          <Text style={styles.priorityText}>{activity.priority}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                  
+                  {activity.progress < 100 && (
+                    <View style={styles.activityProgress}>
+                      <View style={styles.progressHeader}>
+                        <Text style={styles.progressLabel}>Progress</Text>
+                        <Text style={styles.progressPercent}>{activity.progress}%</Text>
+                      </View>
+                      <ProgressBar
+                        progress={activity.progress / 100}
+                        color={getStatusColor(activity.status)}
+                        style={styles.miniProgressBar}
+                      />
+                    </View>
+                  )}
+                </View>
+              </Surface>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.bottomSpacing} />
+      </Animated.ScrollView>
+
+      <FindLawyersModal />
+      <CaseStatusModal />
+    </View>
   );
 }
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'completed': return '#4CAF50';
-    case 'answered': return '#2196F3';
-    case 'reviewed': return '#FF9800';
-    default: return '#757575';
-  }
-};
-
-const getPriorityColor = (priority) => {
-  switch (priority) {
-    case 'high': return '#F44336';
-    case 'medium': return '#FF9800';
-    case 'low': return '#4CAF50';
-    default: return '#757575';
-  }
-};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: colors.background,
   },
-
-  // Header Styles
-  headerGradient: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 30,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+  headerContainer: {
+    position: 'relative',
+  },
+  header: {
+    paddingTop: StatusBar.currentHeight + 20 || 64,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  particleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  particle: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(76, 236, 196, 0.3)',
+  },
+  particle1: {
+    top: '20%',
+    left: '15%',
+  },
+  particle2: {
+    top: '60%',
+    right: '20%',
+  },
+  particle3: {
+    top: '40%',
+    left: '70%',
   },
   headerContent: {
-    flex: 1,
-  },
-  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  userInfo: {
+  userSection: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
+  avatarContainer: {
+    position: 'relative',
+  },
+  avatarGradient: {
+    borderRadius: 28,
+    padding: 2,
+  },
   avatar: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderWidth: 2,
-    borderColor: '#fff',
+    backgroundColor: 'transparent',
   },
   avatarLabel: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    color: colors.primary,
+    fontWeight: '700',
   },
-  greetingContainer: {
-    marginLeft: 15,
+  statusIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4ECDC4',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  userDetails: {
+    marginLeft: 16,
     flex: 1,
   },
-  greeting: {
+  welcomeText: {
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '500',
   },
   userName: {
+    color: 'white',
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 2,
+    fontWeight: '700',
+    marginTop: 2,
   },
-  tagline: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+  expertiseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 236, 196, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 6,
+    alignSelf: 'flex-start',
   },
-  notificationBtn: {
+  expertiseText: {
+    color: '#4ECDC4',
+    fontSize: 11,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
     position: 'relative',
-    padding: 8,
+  },
+  actionButtonGradient: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   notificationBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#FF4444',
+    backgroundColor: '#4ECDC4',
   },
-  statsContainer: {
+  summaryCardContainer: {
+    marginHorizontal: 24,
+    marginTop: -12,
+  },
+  glassSummary: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  summaryGradient: {
+    padding: 20,
+  },
+  summaryContent: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 15,
-    padding: 15,
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  statItem: {
+  summaryItem: {
     alignItems: 'center',
     flex: 1,
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+  summaryIconContainer: {
+    marginBottom: 8,
   },
-  statLabel: {
+  summaryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  summaryLabel: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: '600',
   },
-  statDivider: {
+  summaryDivider: {
     width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.3)',
+    height: 40,
+    backgroundColor: 'rgba(100, 116, 139, 0.2)',
+    marginHorizontal: 16,
   },
-
-  // Section Styles
+  scrollView: {
+    flex: 1,
+    marginTop: 16,
+  },
+  scrollContent: {
+    paddingTop: 8,
+  },
   section: {
-    marginTop: 20,
-    paddingHorizontal: 20,
+    marginHorizontal: 24,
+    marginBottom: 32,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: -0.5,
   },
-  seeAllText: {
-    fontSize: 14,
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  viewAllText: {
+    fontSize: 12,
     color: colors.primary,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceVariant,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  filterText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  statsContainer: {
+    paddingRight: 24,
+  },
+  statCardContainer: {
+    width: width * 0.4,
+    marginRight: 16,
+    position: 'relative',
+  },
+  statCard: {
+    borderRadius: 20,
+    padding: 20,
+    minHeight: 140,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  statGlow: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  trendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(76, 236, 196, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  changeText: {
+    color: '#4ECDC4',
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: 'white',
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  statDescription: {
+    fontSize: 10,
+    color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
   },
-
-  // Quick Actions
-  actionsScroll: {
-    paddingRight: 20,
+  quickActionsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 16,
   },
-  actionCard: {
+  quickActionWrapper: {
+    width: (width - 64) / 2,
+  },
+  quickActionCard: {
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
-    marginRight: 15,
-    width: 80,
+    minHeight: 120,
+    position: 'relative',
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: 'rgba(0, 0, 0, 0.15)',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  actionGradient: {
+  actionGlow: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
     width: 60,
     height: 60,
     borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  quickActionTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  quickActionDescription: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  activityCard: {
+    marginBottom: 16,
+    borderRadius: 20,
+    elevation: 6,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  activityContent: {
+    padding: 20,
+  },
+  activityMainInfo: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  activityIconSection: {
+    marginRight: 16,
+  },
+  activityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: 'rgba(0, 0, 0, 0.2)',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  actionTitle: {
+  activityDetails: {
+    flex: 1,
+  },
+  activityTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  activityTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    flex: 1,
+    marginRight: 12,
+    lineHeight: 22,
+  },
+  activityValueContainer: {
+    backgroundColor: colors.accent + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activityValue: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    textAlign: 'center',
-    marginBottom: 2,
+    color: colors.accent,
+    fontWeight: '800',
   },
-  actionDescription: {
-    fontSize: 10,
+  activitySubtitle: {
+    fontSize: 14,
     color: colors.textSecondary,
-    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 10,
   },
-
-  // Progress Section
-  progressCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    padding: 20,
-    borderRadius: 16,
-    elevation: 2,
+  activityMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  progressHeader: {
+  timeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
   },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 10,
-    color: '#1A1A1A',
+  activityTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginLeft: 6,
   },
-  progressItem: {
-    marginBottom: 15,
+  priorityIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  progressInfo: {
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  priorityText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  activityProgress: {
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
   progressLabel: {
-    fontSize: 14,
-    color: '#1A1A1A',
-    fontWeight: '500',
-  },
-  progressPercent: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: colors.primary,
-  },
-
-  // Recent Activity
-  activityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  activityLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A1A',
-    marginBottom: 2,
-  },
-  activitySubtitle: {
     fontSize: 12,
     color: colors.textSecondary,
-    marginBottom: 2,
+    fontWeight: '600',
   },
-  activityTime: {
-    fontSize: 11,
+  progressPercent: {
+    fontSize: 12,
+    color: colors.text,
+    fontWeight: '700',
+  },
+  miniProgressBar: {
+    height: 4,
+    borderRadius: 2,
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  bottomSpacing: {
+    height: 40,
+  },
+  
+  // Modal Styles
+  modalContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  modalSurface: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: height * 0.8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  searchBar: {
+    marginBottom: 16,
+    backgroundColor: colors.surfaceVariant,
+  },
+  
+  // Find Lawyers Modal Styles
+  lawyerCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  lawyerInfo: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  lawyerAvatar: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  verifiedBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: colors.success,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  lawyerDetails: {
+    flex: 1,
+  },
+  lawyerName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  lawyerSpecialization: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  lawyerMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.text,
+    marginLeft: 4,
+  },
+  reviewsText: {
+    fontSize: 12,
     color: colors.textSecondary,
+    marginLeft: 2,
   },
-  activityRight: {
+  experienceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  priorityBadge: {
-    marginRight: 8,
+  experienceText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginLeft: 4,
   },
-
-  // Legal Tip Card
-  tipCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  tipGradient: {
-    padding: 20,
-  },
-  tipHeader: {
+  lawyerFooter: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  feeText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  availabilityChip: {
+    height: 24,
+  },
+  availabilityText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  consultButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+  },
+  consultButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'white',
+  },
+  
+  // Case Status Modal Styles
+  caseCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  caseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
   },
-  tipIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFD70020',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  tipHeaderText: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1A1A1A',
-  },
-  tipCategory: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  nextTipBtn: {
-    padding: 8,
-  },
-  tipContent: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#4A4A4A',
-    marginBottom: 15,
-  },
-  tipFooter: {
-    alignItems: 'flex-start',
-  },
-  tipAction: {
+  caseIdContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  tipActionText: {
-    fontSize: 14,
+  caseId: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginRight: 12,
+  },
+  statusIndicator: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  caseValue: {
+    backgroundColor: colors.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  caseValueText: {
+    fontSize: 12,
     color: colors.primary,
-    fontWeight: '500',
-    marginRight: 4,
+    fontWeight: '800',
   },
-
-  // Progress Bar Styles
-  progressBarContainer: {
-    height: 6,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 3,
-    overflow: 'hidden',
+  caseTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
   },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    transition: 'width 0.3s ease',
+  caseDescription: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
   },
-
-  bottomPadding: {
-    height: 30,
+  caseMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  lawyerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  lawyerName: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  hearingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  hearingDate: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  progressContainer: {
+    backgroundColor: colors.surfaceVariant,
+    padding: 12,
+    borderRadius: 12,
   },
 });

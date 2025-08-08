@@ -65,12 +65,15 @@ export default function LawyerDashboard() {
   const [scrollY] = useState(new Animated.Value(0));
   const navigation = useNavigation();
   const [showAddCaseModal, setShowAddCaseModal] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [goalPeriod, setGoalPeriod] = useState('monthly');
 
   const handleAddCase = (caseData) => {
     // Handle the new case data
     console.log('New case created:', caseData);
     setShowAddCaseModal(false);
   };
+
   const stats = [
     { 
       label: 'Active Cases', 
@@ -111,12 +114,13 @@ export default function LawyerDashboard() {
       trend: 'up',
       icon: 'diamond', 
       gradient: colors.gradient.gold,
+      screen: SCREEN_NAMES.REVENUE,
       glowColor: colors.secondary,
       description: 'This month'
     },
   ];
 
-  const pendingTasks = [
+  const allTasks = [
     {
       id: 1,
       title: 'Supreme Court Filing',
@@ -152,8 +156,89 @@ export default function LawyerDashboard() {
       urgency: 'low',
       value: '₹5L',
       type: 'audit'
+    },
+    {
+      id: 4,
+      title: 'Contract Negotiation',
+      client: 'Global Tech Inc.',
+      deadline: '3 days',
+      priority: 'high',
+      category: 'Contract Law',
+      progress: 75,
+      urgency: 'high',
+      value: '₹12L',
+      type: 'negotiation'
+    },
+    {
+      id: 5,
+      title: 'Patent Application',
+      client: 'Innovation Labs',
+      deadline: '1 week',
+      priority: 'low',
+      category: 'IP Law',
+      progress: 20,
+      urgency: 'low',
+      value: '₹3L',
+      type: 'application'
     }
   ];
+
+  const filterButtons = [
+    { key: 'all', label: 'All Tasks', icon: 'view-grid', count: allTasks.length },
+    { key: 'critical', label: 'Critical', icon: 'alert-circle', count: allTasks.filter(t => t.priority === 'critical').length },
+    { key: 'high', label: 'High Priority', icon: 'flag', count: allTasks.filter(t => t.priority === 'high').length },
+    { key: 'today', label: 'Due Today', icon: 'clock-alert', count: allTasks.filter(t => t.deadline.includes('Today') || t.deadline.includes('hours')).length },
+  ];
+
+  const getFilteredTasks = () => {
+    switch (activeFilter) {
+      case 'critical':
+        return allTasks.filter(task => task.priority === 'critical');
+      case 'high':
+        return allTasks.filter(task => task.priority === 'high');
+      case 'today':
+        return allTasks.filter(task => task.deadline.includes('Today') || task.deadline.includes('hours'));
+      default:
+        return allTasks;
+    }
+  };
+
+  const goalPeriods = [
+    { key: 'weekly', label: 'Week', icon: 'calendar-week' },
+    { key: 'monthly', label: 'Month', icon: 'calendar-month' },
+    { key: 'quarterly', label: 'Quarter', icon: 'calendar-range' },
+    { key: 'yearly', label: 'Year', icon: 'calendar' },
+  ];
+
+  const getGoalData = () => {
+    const data = {
+      weekly: {
+        period: 'This Week',
+        casesWon: { current: 6, target: 7, percentage: 86 },
+        revenue: { current: '₹65K', target: '₹75K', percentage: 87 },
+        satisfaction: { current: 4.8, target: 5.0, percentage: 96 }
+      },
+      monthly: {
+        period: 'December Performance',
+        casesWon: { current: 24, target: 25, percentage: 96 },
+        revenue: { current: '₹2.4L', target: '₹2.5L', percentage: 96 },
+        satisfaction: { current: 4.9, target: 5.0, percentage: 98 }
+      },
+      quarterly: {
+        period: 'Q4 2024',
+        casesWon: { current: 68, target: 75, percentage: 91 },
+        revenue: { current: '₹7.2L', target: '₹8L', percentage: 90 },
+        satisfaction: { current: 4.7, target: 5.0, percentage: 94 }
+      },
+      yearly: {
+        period: '2024 Annual',
+        casesWon: { current: 285, target: 300, percentage: 95 },
+        revenue: { current: '₹28L', target: '₹30L', percentage: 93 },
+        satisfaction: { current: 4.8, target: 5.0, percentage: 96 }
+      }
+    };
+    return data[goalPeriod];
+  };
 
   const quickActions = [
     { 
@@ -173,21 +258,24 @@ export default function LawyerDashboard() {
       title: 'Documents', 
       icon: 'file-document-multiple', 
       gradient: colors.gradient.info,
-      screen: SCREEN_NAMES.LEGAL_DOCUMENTS,
+      screen: SCREEN_NAMES.ANALYTICS,
       description: 'Manage files'
     },
     { 
       title: 'Analytics', 
       icon: 'chart-line-variant', 
       gradient: colors.gradient.success,
+      screen: SCREEN_NAMES.ANALYTICS,
       description: 'View insights'
     },
   ];
 
-   const handleAction = (screenName) => {
-    if (screenName) {
+  const handleAction = (screenName) => {
       navigation.navigate('InApp', { screen: screenName });
-    }
+  };
+
+  const handleStatCardPress = (stat) => {
+      handleAction(stat.screen);
   };
 
   const headerOpacity = scrollY.interpolate({
@@ -195,6 +283,8 @@ export default function LawyerDashboard() {
     outputRange: [1, 0.9],
     extrapolate: 'clamp',
   });
+
+  const currentGoalData = getGoalData();
 
   return (
     <View style={styles.container}>
@@ -331,14 +421,10 @@ export default function LawyerDashboard() {
         )}
         scrollEventThrottle={16}
       >
-        {/* Premium Statistics with Glow Effects */}
+        {/* Premium Statistics without View Details button */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderSimple}>
             <Text style={styles.sectionTitle}>Performance Analytics</Text>
-            <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={styles.viewAllText}>View Details</Text>
-              <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
-            </TouchableOpacity>
           </View>
           
           <ScrollView 
@@ -350,7 +436,7 @@ export default function LawyerDashboard() {
             snapToInterval={width * 0.42}
           >
             {stats.map((stat, index) => (
-              <TouchableOpacity key={index} activeOpacity={0.9} onPress={() => handleAction(stat.screen)}>
+              <TouchableOpacity key={index} activeOpacity={0.9} onPress={() => handleStatCardPress(stat)}>
                 <View style={styles.statCardContainer}>
                   <LinearGradient
                     colors={stat.gradient}
@@ -391,18 +477,49 @@ export default function LawyerDashboard() {
           </ScrollView>
         </View>
 
-        {/* Advanced Progress Section */}
+        {/* Enhanced Goal Progression Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Goal Progression</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Goal Progression</Text>
+            <View style={styles.goalPeriodToggle}>
+              {goalPeriods.map((period) => (
+                <TouchableOpacity
+                  key={period.key}
+                  style={[
+                    styles.periodButton,
+                    goalPeriod === period.key && styles.periodButtonActive
+                  ]}
+                  onPress={() => setGoalPeriod(period.key)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialCommunityIcons 
+                    name={period.icon} 
+                    size={14} 
+                    color={goalPeriod === period.key ? colors.secondary : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.periodButtonText,
+                    goalPeriod === period.key && styles.periodButtonTextActive
+                  ]}>
+                    {period.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          
           <Surface style={styles.progressCard}>
             <LinearGradient
               colors={['rgba(139, 92, 246, 0.05)', 'rgba(59, 130, 246, 0.05)']}
               style={styles.progressBackground}
             >
               <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>December Performance</Text>
+                <Text style={styles.progressTitle}>{currentGoalData.period}</Text>
                 <View style={styles.performanceIndicator}>
-                  <Text style={styles.performanceText}>Excellent</Text>
+                  <Text style={styles.performanceText}>
+                    {currentGoalData.casesWon.percentage >= 95 ? 'Excellent' : 
+                     currentGoalData.casesWon.percentage >= 85 ? 'Good' : 'Average'}
+                  </Text>
                   <MaterialCommunityIcons name="star" size={16} color={colors.secondary} />
                 </View>
               </View>
@@ -411,45 +528,51 @@ export default function LawyerDashboard() {
                 <View style={styles.progressItem}>
                   <View style={styles.progressLabelContainer}>
                     <Text style={styles.progressLabel}>Cases Won</Text>
-                    <Text style={styles.progressValue}>24/25</Text>
+                    <Text style={styles.progressValue}>
+                      {currentGoalData.casesWon.current}/{currentGoalData.casesWon.target}
+                    </Text>
                   </View>
                   <View style={styles.progressBarContainer}>
                     <ProgressBar 
-                      progress={0.96} 
+                      progress={currentGoalData.casesWon.percentage / 100} 
                       color={colors.success}
                       style={styles.modernProgressBar}
                     />
-                    <Text style={styles.progressPercent}>96%</Text>
+                    <Text style={styles.progressPercent}>{currentGoalData.casesWon.percentage}%</Text>
                   </View>
                 </View>
                 
                 <View style={styles.progressItem}>
                   <View style={styles.progressLabelContainer}>
                     <Text style={styles.progressLabel}>Revenue Target</Text>
-                    <Text style={styles.progressValue}>₹2.4L/₹2.5L</Text>
+                    <Text style={styles.progressValue}>
+                      {currentGoalData.revenue.current}/{currentGoalData.revenue.target}
+                    </Text>
                   </View>
                   <View style={styles.progressBarContainer}>
                     <ProgressBar 
-                      progress={0.96} 
+                      progress={currentGoalData.revenue.percentage / 100} 
                       color={colors.secondary}
                       style={styles.modernProgressBar}
                     />
-                    <Text style={styles.progressPercent}>96%</Text>
+                    <Text style={styles.progressPercent}>{currentGoalData.revenue.percentage}%</Text>
                   </View>
                 </View>
                 
                 <View style={styles.progressItem}>
                   <View style={styles.progressLabelContainer}>
                     <Text style={styles.progressLabel}>Client Satisfaction</Text>
-                    <Text style={styles.progressValue}>4.9/5.0</Text>
+                    <Text style={styles.progressValue}>
+                      {currentGoalData.satisfaction.current}/5.0
+                    </Text>
                   </View>
                   <View style={styles.progressBarContainer}>
                     <ProgressBar 
-                      progress={0.98} 
+                      progress={currentGoalData.satisfaction.percentage / 100} 
                       color={colors.tertiary}
                       style={styles.modernProgressBar}
                     />
-                    <Text style={styles.progressPercent}>98%</Text>
+                    <Text style={styles.progressPercent}>{currentGoalData.satisfaction.percentage}%</Text>
                   </View>
                 </View>
               </View>
@@ -457,17 +580,64 @@ export default function LawyerDashboard() {
           </Surface>
         </View>
 
-        {/* Premium Task Cards */}
+        {/* Enhanced Task Filter Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>High-Priority Matters</Text>
-            <TouchableOpacity style={styles.filterButton}>
-              <MaterialCommunityIcons name="filter-variant" size={16} color={colors.primary} />
-              <Text style={styles.filterText}>Filter</Text>
-            </TouchableOpacity>
           </View>
           
-          {pendingTasks.map((task, index) => (
+          {/* Filter Buttons */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterContainer}
+            style={styles.filterScrollView}
+          >
+            {filterButtons.map((filter) => (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterChip,
+                  activeFilter === filter.key && styles.filterChipActive
+                ]}
+                onPress={() => setActiveFilter(filter.key)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={activeFilter === filter.key ? colors.gradient.primary : ['transparent', 'transparent']}
+                  style={styles.filterChipGradient}
+                >
+                  <MaterialCommunityIcons 
+                    name={filter.icon} 
+                    size={16} 
+                    color={activeFilter === filter.key ? 'white' : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.filterChipText,
+                    activeFilter === filter.key && styles.filterChipTextActive
+                  ]}>
+                    {filter.label}
+                  </Text>
+                  {filter.count > 0 && (
+                    <View style={[
+                      styles.filterBadge,
+                      activeFilter === filter.key && styles.filterBadgeActive
+                    ]}>
+                      <Text style={[
+                        styles.filterBadgeText,
+                        activeFilter === filter.key && styles.filterBadgeTextActive
+                      ]}>
+                        {filter.count}
+                      </Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          
+          {/* Filtered Tasks */}
+          {getFilteredTasks().map((task, index) => (
             <TouchableOpacity key={task.id} activeOpacity={0.95}>
               <Surface style={styles.premiumTaskCard}>
                 <View style={styles.taskCardContent}>
@@ -601,6 +771,8 @@ const getTaskIcon = (type) => {
     case 'filing': return 'file-document-edit';
     case 'review': return 'magnify-scan';
     case 'audit': return 'shield-check';
+    case 'negotiation': return 'handshake';
+    case 'application': return 'file-document-edit-outline'; // valid icon name
     default: return 'briefcase';
   }
 };
@@ -811,39 +983,102 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  sectionHeaderSimple: {
+    marginBottom: 20,
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: colors.text,
     letterSpacing: -0.5,
   },
-  viewAllButton: {
+  goalPeriodToggle: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary + '10',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  viewAllText: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '600',
-    marginRight: 4,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    padding: 4,
+  },
+  periodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: 8,
+    marginHorizontal: 2,
   },
-  filterText: {
-    fontSize: 12,
-    color: colors.primary,
+  periodButtonActive: {
+    backgroundColor: colors.secondary,
+    elevation: 2,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  periodButtonText: {
+    fontSize: 11,
+    color: colors.textSecondary,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  periodButtonTextActive: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  filterScrollView: {
+    marginBottom: 20,
+  },
+  filterContainer: {
+    paddingRight: 24,
+    gap: 12,
+  },
+  filterChip: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.textTertiary,
+  },
+  filterChipActive: {
+    borderColor: colors.primary,
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  filterChipGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterChipText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  filterBadge: {
+    backgroundColor: colors.textTertiary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  filterBadgeText: {
+    fontSize: 10,
+    color: 'white',
+    fontWeight: '700',
+  },
+  filterBadgeTextActive: {
+    color: 'white',
   },
   statsContainer: {
     paddingRight: 24,

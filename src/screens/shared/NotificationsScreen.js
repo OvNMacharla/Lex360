@@ -127,7 +127,6 @@ import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
 import { 
   Card, 
   Text, 
-  Text, 
   Avatar, 
   Button,
   List,
