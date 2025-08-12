@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,13 @@ import {
   Image,
   Dimensions,
   StatusBar,
-  RefreshControl
+  RefreshControl,
+  TextInput,
+  Modal,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -102,19 +108,259 @@ const drawerStyles = StyleSheet.create({
 });
 
 // ----------------------
+// Create Post Modal
+// ----------------------
+function CreatePostModal({ visible, onClose, onSubmit, user }) {
+  const [postText, setPostText] = useState('');
+  const [selectedType, setSelectedType] = useState('text');
+  const [selectedImage, setSelectedImage] = useState(null);
+
+  const postTypes = [
+    { id: 'text', label: 'Text Post', icon: 'text', color: colors.primary },
+    { id: 'photo', label: 'Photo', icon: 'image-outline', color: colors.linkedin },
+    { id: 'video', label: 'Video', icon: 'video-outline', color: colors.success },
+    { id: 'case', label: 'Case Update', icon: 'briefcase-outline', color: colors.warning },
+    { id: 'article', label: 'Article', icon: 'file-document-outline', color: colors.error }
+  ];
+
+  const handleSubmit = () => {
+    if (!postText.trim()) {
+      Alert.alert('Error', 'Please enter some content for your post');
+      return;
+    }
+
+    const newPost = {
+      id: Date.now(),
+      author: {
+        name: user?.name || 'User Name',
+        role: user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client',
+        firm: user?.firm || 'Legal Professional',
+        avatar: user?.avatar || 'https://www.pngplay.com/wp-content/uploads/12/User-Avatar-Profile-PNG-Free-File-Download.png',
+        verified: false
+      },
+      content: postText,
+      timestamp: 'now',
+      likes: 0,
+      comments: 0,
+      shares: 0,
+      type: selectedType,
+      image: selectedImage,
+      likedBy: [],
+      commentsList: []
+    };
+
+    onSubmit(newPost);
+    setPostText('');
+    setSelectedImage(null);
+    setSelectedType('text');
+    onClose();
+  };
+
+  const selectImage = () => {
+    // Simulate image selection
+    const sampleImages = [
+      'https://via.placeholder.com/400x200',
+      'https://via.placeholder.com/400x250',
+      'https://via.placeholder.com/400x180'
+    ];
+    setSelectedImage(sampleImages[Math.floor(Math.random() * sampleImages.length)]);
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <KeyboardAvoidingView 
+        style={styles.modalContainer} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose}>
+            <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Create Post</Text>
+          <TouchableOpacity onPress={handleSubmit} style={styles.postButton}>
+            <Text style={styles.postButtonText}>Post</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.modalContent}>
+          <View style={styles.authorSection}>
+            <Image 
+              source={{ uri: user?.avatar || 'https://via.placeholder.com/50' }} 
+              style={styles.modalAvatar} 
+            />
+            <View>
+              <Text style={styles.modalAuthorName}>{user?.name || 'User Name'}</Text>
+              <Text style={styles.modalAuthorRole}>
+                {user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client'}
+              </Text>
+            </View>
+          </View>
+
+          <TextInput
+            style={styles.postInput}
+            multiline
+            placeholder="What's on your mind? Share your legal insights, achievements, or opportunities..."
+            placeholderTextColor={colors.textSecondary}
+            value={postText}
+            onChangeText={setPostText}
+            textAlignVertical="top"
+          />
+
+          {selectedImage && (
+            <View style={styles.imagePreview}>
+              <Image source={{ uri: selectedImage }} style={styles.previewImage} />
+              <TouchableOpacity 
+                style={styles.removeImageButton}
+                onPress={() => setSelectedImage(null)}
+              >
+                <MaterialCommunityIcons name="close-circle" size={24} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <Text style={styles.sectionTitle}>Post Type</Text>
+          <View style={styles.postTypesContainer}>
+            {postTypes.map((type) => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.postTypeButton,
+                  selectedType === type.id && { backgroundColor: type.color + '20' }
+                ]}
+                onPress={() => setSelectedType(type.id)}
+              >
+                <MaterialCommunityIcons 
+                  name={type.icon} 
+                  size={20} 
+                  color={selectedType === type.id ? type.color : colors.textSecondary} 
+                />
+                <Text style={[
+                  styles.postTypeText,
+                  selectedType === type.id && { color: type.color }
+                ]}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity style={styles.addMediaButton} onPress={selectImage}>
+            <MaterialCommunityIcons name="plus-circle-outline" size={24} color={colors.linkedin} />
+            <Text style={styles.addMediaText}>Add Photo/Video</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ----------------------
+// Comments Modal
+// ----------------------
+function CommentsModal({ visible, onClose, post, onAddComment }) {
+  const [commentText, setCommentText] = useState('');
+  const { user } = useSelector((state) => state.auth);
+
+  const handleAddComment = () => {
+    if (!commentText.trim()) return;
+
+    const newComment = {
+      id: Date.now(),
+      author: {
+        name: user?.name || 'User Name',
+        avatar: user?.avatar || 'https://www.pngplay.com/wp-content/uploads/12/User-Avatar-Profile-PNG-Free-File-Download.png'
+      },
+      content: commentText,
+      timestamp: 'now',
+      likes: 0
+    };
+
+    onAddComment(post.id, newComment);
+    setCommentText('');
+  };
+
+  const renderComment = ({ item }) => (
+    <View style={styles.commentItem}>
+      <Image source={{ uri: item.author.avatar }} style={styles.commentAvatar} />
+      <View style={styles.commentContent}>
+        <Text style={styles.commentAuthor}>{item.author.name}</Text>
+        <Text style={styles.commentText}>{item.content}</Text>
+        <View style={styles.commentActions}>
+          <Text style={styles.commentTime}>{item.timestamp}</Text>
+          <TouchableOpacity style={styles.commentLike}>
+            <MaterialCommunityIcons name="thumb-up-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.commentLikeText}>{item.likes}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={onClose}>
+            <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Comments</Text>
+          <View style={{ width: 24 }} />
+        </View>
+
+        <FlatList
+          data={post?.commentsList || []}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderComment}
+          style={styles.commentsList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyComments}>
+              <MaterialCommunityIcons name="comment-outline" size={48} color={colors.textTertiary} />
+              <Text style={styles.emptyCommentsText}>No comments yet</Text>
+              <Text style={styles.emptyCommentsSubtext}>Be the first to comment!</Text>
+            </View>
+          )}
+        />
+
+        <View style={styles.commentInputContainer}>
+          <Image 
+            source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
+            style={styles.commentInputAvatar} 
+          />
+          <TextInput
+            style={styles.commentInput}
+            placeholder="Write a comment..."
+            placeholderTextColor={colors.textSecondary}
+            value={commentText}
+            onChangeText={setCommentText}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity 
+            onPress={handleAddComment}
+            style={[styles.commentSendButton, !commentText.trim() && { opacity: 0.5 }]}
+            disabled={!commentText.trim()}
+          >
+            <MaterialCommunityIcons name="send" size={20} color={colors.linkedin} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ----------------------
 // Main Feed Screen
 // ----------------------
 function FeedScreen() {
   const { user } = useSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
   const navigation = useNavigation();
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
-  };
-
-  const feedPosts = [
+  const [feedPosts, setFeedPosts] = useState([
     {
       id: 1,
       author: {
@@ -130,7 +376,24 @@ function FeedScreen() {
       comments: 34,
       shares: 12,
       image: 'https://via.placeholder.com/400x200',
-      type: 'achievement'
+      type: 'achievement',
+      likedBy: [],
+      commentsList: [
+        {
+          id: 1,
+          author: { name: 'John Doe', avatar: 'https://via.placeholder.com/40' },
+          content: 'Congratulations! This is truly inspiring.',
+          timestamp: '1h',
+          likes: 5
+        },
+        {
+          id: 2,
+          author: { name: 'Sarah Wilson', avatar: 'https://via.placeholder.com/40' },
+          content: 'Amazing work! The legal community needs more professionals like you.',
+          timestamp: '45m',
+          likes: 12
+        }
+      ]
     },
     {
       id: 2,
@@ -146,7 +409,9 @@ function FeedScreen() {
       likes: 89,
       comments: 23,
       shares: 8,
-      type: 'opportunity'
+      type: 'opportunity',
+      likedBy: [],
+      commentsList: []
     },
     {
       id: 3,
@@ -163,9 +428,72 @@ function FeedScreen() {
       comments: 156,
       shares: 234,
       image: 'https://via.placeholder.com/400x250',
-      type: 'news'
+      type: 'news',
+      likedBy: [],
+      commentsList: []
     }
-  ];
+  ]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1500);
+  };
+
+  const handleCreatePost = (newPost) => {
+    setFeedPosts([newPost, ...feedPosts]);
+  };
+
+  const handleLike = (postId) => {
+    const userId = user?.id || 'current_user';
+    setFeedPosts(prevPosts => 
+      prevPosts.map(post => {
+        if (post.id === postId) {
+          const isLiked = post.likedBy.includes(userId);
+          return {
+            ...post,
+            likes: isLiked ? post.likes - 1 : post.likes + 1,
+            likedBy: isLiked 
+              ? post.likedBy.filter(id => id !== userId)
+              : [...post.likedBy, userId]
+          };
+        }
+        return post;
+      })
+    );
+  };
+
+  const handleComment = (postId) => {
+    const post = feedPosts.find(p => p.id === postId);
+    setSelectedPost(post);
+    setShowComments(true);
+  };
+
+  const handleAddComment = (postId, comment) => {
+    setFeedPosts(prevPosts => 
+      prevPosts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            comments: post.comments + 1,
+            commentsList: [...post.commentsList, comment]
+          };
+        }
+        return post;
+      })
+    );
+  };
+
+  const handleShare = (postId) => {
+    setFeedPosts(prevPosts => 
+      prevPosts.map(post => {
+        if (post.id === postId) {
+          return { ...post, shares: post.shares + 1 };
+        }
+        return post;
+      })
+    );
+    Alert.alert('Shared!', 'Post has been shared successfully');
+  };
 
   const HeaderComponent = () => (
     <View style={styles.header}>
@@ -176,7 +504,6 @@ function FeedScreen() {
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
         
         <View style={styles.headerContent}>
-          {/* Profile Icon to Open Drawer */}
           <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())}>
             <Image 
               source={{ uri: user?.avatar || 'https://www.pngplay.com/wp-content/uploads/12/User-Avatar-Profile-PNG-Free-File-Download.png' }}
@@ -184,13 +511,11 @@ function FeedScreen() {
             />
           </TouchableOpacity>
 
-          
-            <TouchableOpacity onPress={() => navigation.navigate('InApp',{screen:SCREEN_NAMES.SEARCH})}>
-          <View style={styles.searchContainer}>
+          <TouchableOpacity onPress={() => navigation.navigate('InApp',{screen:SCREEN_NAMES.SEARCH})}>
+            <View style={styles.searchContainer}>
               <MaterialCommunityIcons name="magnify" size={20} color="#FFFFFF" />
               <Text style={styles.searchPlaceholder}>Search legal professionals, cases...</Text>
-            
-          </View>
+            </View>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate('InApp',{screen:SCREEN_NAMES.CHAT})}>
@@ -204,43 +529,65 @@ function FeedScreen() {
     </View>
   );
 
-  const PostCard = ({ post }) => (
-    <View style={styles.postCard}>
-      <View style={styles.postHeader}>
-        <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} />
-        <View style={styles.authorInfo}>
-          <View style={styles.authorNameRow}>
-            <Text style={styles.authorName}>{post.author.name}</Text>
-            {post.author.verified && (
-              <MaterialCommunityIcons name="check-decagram" size={16} color={colors.linkedin} />
-            )}
+  const PostCard = ({ post }) => {
+    const isLiked = post.likedBy.includes(user?.id || 'current_user');
+    
+    return (
+      <View style={styles.postCard}>
+        <View style={styles.postHeader}>
+          <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} />
+          <View style={styles.authorInfo}>
+            <View style={styles.authorNameRow}>
+              <Text style={styles.authorName}>{post.author.name}</Text>
+              {post.author.verified && (
+                <MaterialCommunityIcons name="check-decagram" size={16} color={colors.linkedin} />
+              )}
+            </View>
+            <Text style={styles.authorRole}>{post.author.role} • {post.author.firm}</Text>
+            <Text style={styles.postTime}>{post.timestamp}</Text>
           </View>
-          <Text style={styles.authorRole}>{post.author.role} • {post.author.firm}</Text>
-          <Text style={styles.postTime}>{post.timestamp}</Text>
+          <TouchableOpacity style={styles.moreButton}>
+            <MaterialCommunityIcons name="dots-horizontal" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.moreButton}>
-          <MaterialCommunityIcons name="dots-horizontal" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
 
-      <Text style={styles.postContent}>{post.content}</Text>
-      {post.image && <Image source={{ uri: post.image }} style={styles.postImage} />}
-      <View style={styles.postActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <MaterialCommunityIcons name="thumb-up-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.actionText}>{post.likes} Likes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <MaterialCommunityIcons name="comment-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.actionText}>{post.comments} Comments</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <MaterialCommunityIcons name="share-outline" size={18} color={colors.textSecondary} />
-          <Text style={styles.actionText}>{post.shares} Shares</Text>
-        </TouchableOpacity>
+        <Text style={styles.postContent}>{post.content}</Text>
+        {post.image && <Image source={{ uri: post.image }} style={styles.postImage} />}
+        
+        <View style={styles.postActions}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleLike(post.id)}
+          >
+            <MaterialCommunityIcons 
+              name={isLiked ? "thumb-up" : "thumb-up-outline"} 
+              size={18} 
+              color={isLiked ? colors.linkedin : colors.textSecondary} 
+            />
+            <Text style={[styles.actionText, isLiked && { color: colors.linkedin }]}>
+              {post.likes} Likes
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleComment(post.id)}
+          >
+            <MaterialCommunityIcons name="comment-outline" size={18} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{post.comments} Comments</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleShare(post.id)}
+          >
+            <MaterialCommunityIcons name="share-outline" size={18} color={colors.textSecondary} />
+            <Text style={styles.actionText}>{post.shares} Shares</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const CreatePostCard = () => (
     <View style={styles.createPostCard}>
@@ -249,7 +596,10 @@ function FeedScreen() {
           source={{ uri: user?.avatar || 'https://via.placeholder.com/40' }} 
           style={styles.userAvatar} 
         />
-        <TouchableOpacity style={styles.createPostInput}>
+        <TouchableOpacity 
+          style={styles.createPostInput}
+          onPress={() => setShowCreatePost(true)}
+        >
           <Text style={styles.createPostPlaceholder}>
             Share your legal insights, achievements, or opportunities...
           </Text>
@@ -257,19 +607,34 @@ function FeedScreen() {
       </View>
       
       <View style={styles.createPostActions}>
-        <TouchableOpacity style={styles.createAction}>
+        <TouchableOpacity 
+          style={styles.createAction}
+          onPress={() => setShowCreatePost(true)}
+        >
           <MaterialCommunityIcons name="image-outline" size={20} color={colors.linkedin} />
           <Text style={styles.createActionText}>Photo</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.createAction}>
+        
+        <TouchableOpacity 
+          style={styles.createAction}
+          onPress={() => setShowCreatePost(true)}
+        >
           <MaterialCommunityIcons name="video-outline" size={20} color={colors.success} />
           <Text style={styles.createActionText}>Video</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.createAction}>
+        
+        <TouchableOpacity 
+          style={styles.createAction}
+          onPress={() => setShowCreatePost(true)}
+        >
           <MaterialCommunityIcons name="briefcase-outline" size={20} color={colors.warning} />
           <Text style={styles.createActionText}>Case</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.createAction}>
+        
+        <TouchableOpacity 
+          style={styles.createAction}
+          onPress={() => setShowCreatePost(true)}
+        >
           <MaterialCommunityIcons name="file-document-outline" size={20} color={colors.error} />
           <Text style={styles.createActionText}>Article</Text>
         </TouchableOpacity>
@@ -291,6 +656,20 @@ function FeedScreen() {
         ))}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      <CreatePostModal
+        visible={showCreatePost}
+        onClose={() => setShowCreatePost(false)}
+        onSubmit={handleCreatePost}
+        user={user}
+      />
+
+      <CommentsModal
+        visible={showComments}
+        onClose={() => setShowComments(false)}
+        post={selectedPost}
+        onAddComment={handleAddComment}
+      />
     </View>
   );
 }
@@ -313,11 +692,11 @@ export default function FeedWithDrawer() {
   );
 }
 
-
 // ----------------------
 // Styles
 // ----------------------
 const styles = StyleSheet.create({
+  // ... existing styles ...
   avatarContainer: {
     position: 'relative',
   },
@@ -400,4 +779,239 @@ const styles = StyleSheet.create({
   actionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12 },
   actionText: { marginLeft: 6, fontSize: 13, fontWeight: '600', color: colors.textSecondary },
   bottomSpacing: { height: 100 },
+
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+    backgroundColor: colors.surface,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  postButton: {
+    backgroundColor: colors.linkedin,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  postButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  authorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 12,
+  },
+  modalAuthorName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalAuthorRole: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  postInput: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 15,
+    fontSize: 16,
+    color: colors.text,
+    minHeight: 120,
+    textAlignVertical: 'top',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  imagePreview: {
+    position: 'relative',
+    marginBottom: 20,
+  },
+  previewImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 2,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 15,
+  },
+  postTypesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+  },
+  postTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 10,
+    marginBottom: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  postTypeText: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  addMediaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingVertical: 15,
+    borderWidth: 2,
+    borderColor: colors.linkedin,
+    borderStyle: 'dashed',
+  },
+  addMediaText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.linkedin,
+  },
+
+  // Comments Modal Styles
+  commentsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentAuthor: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  commentText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+    marginBottom: 6,
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
+    marginRight: 15,
+  },
+  commentLike: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  commentLikeText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  emptyComments: {
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyCommentsText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginTop: 12,
+  },
+  emptyCommentsSubtext: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    marginTop: 4,
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: colors.surface,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  commentInputAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: 12,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    maxHeight: 100,
+    fontSize: 14,
+    color: colors.text,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  commentSendButton: {
+    marginLeft: 10,
+    padding: 8,
+    backgroundColor: colors.background,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
 });

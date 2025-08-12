@@ -24,7 +24,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 
-import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
+import { loginWithEmail } from '../../store/authSlice';
 import { SCREEN_NAMES } from '../../utils/constants';
 import { colors } from '../../styles/colors';
 
@@ -149,26 +149,12 @@ export default function LoginScreen({ navigation }) {
       }),
     ]).start();
 
-    dispatch(loginStart());
+    dispatch(loginWithEmail({ 
+      email: formData.email, 
+      password: formData.password 
+    }));
+  }
 
-    setTimeout(() => {
-      if (formData.email === 'a@a.com' && formData.password === 'Password') {
-        dispatch(
-          loginSuccess({
-            user: {
-              id: '1',
-              email: formData.email,
-              role: 'client',
-              name: 'Test User',
-            },
-            token: 'fake-jwt-token',
-          })
-        );
-      } else {
-        dispatch(loginFailure('Invalid credentials. Please try again.'));
-      }
-    }, 1500);
-  };
 
   return (
     <KeyboardAvoidingView

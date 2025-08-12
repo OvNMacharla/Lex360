@@ -1,29 +1,27 @@
-import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer } from 'redux-persist';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import authReducer from './authSlice';
-import themeReducer from './themeSlice';
-
-const persistConfig = {
-  key: 'root',
-  storage: AsyncStorage,
-  whitelist: ['theme'], // persist only theme
-};
-
-const rootReducer = combineReducers({
-  auth: authReducer,
-  theme: themeReducer,
-});
-
-const persistedReducer = persistReducer(persistConfig, rootReducer);
+import { configureStore } from '@reduxjs/toolkit';
+import themeReducer from './themeSlice'; // Your existing theme slice
+import authReducer from './authSlice';   // New Firebase auth slice
+import userReducer from './userSlice';   // New user slice
+import chatReducer from './chatSlice';   // New chat slice (optional)
 
 export const store = configureStore({
-  reducer: persistedReducer,
+  reducer: {
+    theme: themeReducer,    // Your existing theme slice
+    auth: authReducer,      // Firebase auth
+    user: userReducer,      // User data
+    // chat: chatReducer,   // Uncomment when you add chat slice
+  },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false,
+      serializableCheck: {
+        ignoredActions: [
+          'persist/PERSIST',
+          'persist/REHYDRATE',
+        ],
+        ignoredPaths: ['auth.user._user'], // Ignore Firebase user object
+      },
     }),
 });
 
-export const persistor = persistStore(store);
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

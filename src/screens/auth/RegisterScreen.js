@@ -27,8 +27,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
-import { loginStart, loginSuccess, loginFailure } from '../../store/authSlice';
+import { registerWithEmail } from '../../store/authSlice';
 import { SCREEN_NAMES, USER_ROLES } from '../../utils/constants';
 import { colors } from '../../styles/colors';
 
@@ -255,42 +254,26 @@ export default function RegisterScreen({ navigation }) {
     ]).start();
   };
 
-  const handleRegister = async () => {
-    if (!validateStep2()) {
-      return;
-    }
 
-    // Button press animation
+  const handleRegister = () => {
+    if (!validateStep2()) return;
+
     Animated.sequence([
-      Animated.timing(buttonScale, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(buttonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
+      Animated.timing(buttonScale, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+      Animated.timing(buttonScale, { toValue: 1, duration: 100, useNativeDriver: true }),
     ]).start();
 
-    dispatch(loginStart());
-    
-    try {
-      setTimeout(() => {
-        dispatch(loginSuccess({
-          user: {
-            id: Date.now().toString(),
-            email: formData.email,
-            role: formData.role,
-            name: formData.name
-          },
-          token: 'fake-jwt-token-new-user'
-        }));
-      }, 1500);
-    } catch (error) {
-      dispatch(loginFailure(error.message));
-    }
+    dispatch(
+      registerWithEmail({
+        email: formData.email,
+        password: formData.password,
+        userData: {
+          displayName: formData.name,
+          role: formData.role,
+          phoneNumber: formData.phoneNumber || '',
+        },
+      })
+    );
   };
 
   const getPasswordStrengthColor = () => {

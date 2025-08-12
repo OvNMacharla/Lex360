@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'react-native';
 import { store } from './src/store';
 import AppNavigator from './src/navigation/AppNavigator';
+import { FirebaseProvider } from './src/contexts/FirebaseContext';
 
 function MainApp() {
   // Use Redux to get current theme state
@@ -34,7 +35,9 @@ function MainApp() {
 export default function App() {
   return (
     <ReduxProvider store={store}>
+      <FirebaseProvider>
       <MainApp />
+      </FirebaseProvider>
     </ReduxProvider>
   );
 }

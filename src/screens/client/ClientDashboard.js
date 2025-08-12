@@ -10,6 +10,9 @@ import {
   RefreshControl,
   Platform,
   FlatList,
+  Alert,
+  TextInput,
+  Image,
 } from 'react-native';
 import {
   Card,
@@ -72,21 +75,17 @@ export default function ClientDashboard() {
   const [scrollY] = useState(new Animated.Value(0));
   const [showFindLawyersModal, setShowFindLawyersModal] = useState(false);
   const [showCaseStatusModal, setShowCaseStatusModal] = useState(false);
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLawyer, setSelectedLawyer] = useState(null);
+  const [showConsultationModal, setShowConsultationModal] = useState(false);
+  const [consultationDate, setConsultationDate] = useState('');
+  const [consultationTime, setConsultationTime] = useState('');
+  const [consultationNote, setConsultationNote] = useState('');
 
-  useEffect(() => {
-    // Animation on mount
-  }, []);
-
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 2000);
-  }, []);
-
-  // Mock data
-  const stats = [
+  // Dynamic state for stats
+  const [stats, setStats] = useState([
     {
       label: 'Active Cases',
       value: '5',
@@ -127,7 +126,56 @@ export default function ClientDashboard() {
       glowColor: colors.warning,
       description: 'Service rating'
     },
-  ];
+  ]);
+
+  // Notifications state
+  const [notifications] = useState([
+    {
+      id: 1,
+      title: 'Case Update',
+      message: 'Your property dispute case has a new hearing date',
+      time: '2 hours ago',
+      type: 'case',
+      unread: true,
+      icon: 'gavel'
+    },
+    {
+      id: 2,
+      title: 'Consultation Reminder',
+      message: 'You have a consultation with Adv. Sharma tomorrow at 2 PM',
+      time: '1 day ago',
+      type: 'consultation',
+      unread: true,
+      icon: 'calendar'
+    },
+    {
+      id: 3,
+      title: 'Document Ready',
+      message: 'Your rental agreement review is completed',
+      time: '2 days ago',
+      type: 'document',
+      unread: false,
+      icon: 'file-document'
+    }
+  ]);
+
+  useEffect(() => {
+    // Animation on mount
+  }, []);
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    // Simulate updating stats
+    setTimeout(() => {
+      setStats(prevStats => prevStats.map(stat => ({
+        ...stat,
+        value: stat.label === 'Active Cases' ? '6' : 
+               stat.label === 'Consultations' ? '13' :
+               stat.label === 'Documents' ? '9' : stat.value
+      })));
+      setRefreshing(false);
+    }, 2000);
+  }, []);
 
   const quickActions = [
     {
@@ -144,6 +192,7 @@ export default function ClientDashboard() {
       description: 'Get instant legal help',
       screen: SCREEN_NAMES.AI_CHAT,
       gradient: colors.gradient.secondary,
+      action: () => navigation.navigate('InApp', { screen: SCREEN_NAMES.AI_CHAT })
     },
     {
       title: 'Case Status',
@@ -159,10 +208,11 @@ export default function ClientDashboard() {
       description: 'Manage documents',
       screen: SCREEN_NAMES.LEGAL_DOCUMENTS,
       gradient: colors.gradient.info,
+      action: () => navigation.navigate('InApp', { screen: SCREEN_NAMES.LEGAL_DOCUMENTS })
     },
   ];
 
-  const recentActivity = [
+  const [recentActivity, setRecentActivity] = useState([
     {
       id: 1,
       type: 'consultation',
@@ -211,9 +261,9 @@ export default function ClientDashboard() {
       value: 'Free',
       progress: 100
     },
-  ];
+  ]);
 
-  const caseStatusData = [
+  const [caseStatusData, setCaseStatusData] = useState([
     {
       id: 'CS001',
       title: 'Property Dispute - Sector 18',
@@ -247,9 +297,9 @@ export default function ClientDashboard() {
       value: '₹8,000',
       description: 'Banking service charges dispute resolved'
     }
-  ];
+  ]);
 
-  const featuredLawyers = [
+  const [featuredLawyers, setFeaturedLawyers] = useState([
     {
       id: 1,
       name: 'Adv. Priya Sharma',
@@ -261,7 +311,8 @@ export default function ClientDashboard() {
       image: null,
       verified: true,
       languages: ['Hindi', 'English'],
-      availability: 'Available Today'
+      availability: 'Available Today',
+      about: 'Specialized in property law with extensive experience in real estate disputes.'
     },
     {
       id: 2,
@@ -274,7 +325,8 @@ export default function ClientDashboard() {
       image: null,
       verified: true,
       languages: ['Hindi', 'English', 'Marathi'],
-      availability: 'Available Tomorrow'
+      availability: 'Available Tomorrow',
+      about: 'Corporate law expert with focus on business compliance and contracts.'
     },
     {
       id: 3,
@@ -287,9 +339,10 @@ export default function ClientDashboard() {
       image: null,
       verified: true,
       languages: ['Hindi', 'English', 'Gujarati'],
-      availability: 'Available Today'
+      availability: 'Available Today',
+      about: 'Family law specialist handling divorce, custody, and matrimonial disputes.'
     }
-  ];
+  ]);
 
   const handleAction = (screenName, customAction) => {
     if (customAction) {
@@ -297,6 +350,64 @@ export default function ClientDashboard() {
     } else if (screenName) {
       navigation.navigate('InApp', { screen: screenName });
     }
+  };
+
+  const handleBookConsultation = (lawyer) => {
+    setSelectedLawyer(lawyer);
+    setShowConsultationModal(true);
+  };
+
+  const handleConfirmBooking = () => {
+    if (!consultationDate || !consultationTime) {
+      Alert.alert('Error', 'Please select date and time for consultation');
+      return;
+    }
+
+    // Add new consultation to recent activity
+    const newConsultation = {
+      id: Date.now(),
+      type: 'consultation',
+      title: `Consultation with ${selectedLawyer.name}`,
+      subtitle: `${selectedLawyer.specialization} - ${consultationNote || 'General consultation'}`,
+      time: 'Scheduled',
+      status: 'scheduled',
+      icon: 'account-tie',
+      priority: 'medium',
+      value: selectedLawyer.fee,
+      progress: 0
+    };
+
+    setRecentActivity(prev => [newConsultation, ...prev]);
+    
+    // Update consultation count
+    setStats(prevStats => prevStats.map(stat => 
+      stat.label === 'Consultations' 
+        ? { ...stat, value: (parseInt(stat.value) + 1).toString() }
+        : stat
+    ));
+
+    Alert.alert(
+      'Consultation Booked!',
+      `Your consultation with ${selectedLawyer.name} has been scheduled for ${consultationDate} at ${consultationTime}`,
+      [{ text: 'OK' }]
+    );
+
+    // Reset form
+    setConsultationDate('');
+    setConsultationTime('');
+    setConsultationNote('');
+    setShowConsultationModal(false);
+    setSelectedLawyer(null);
+    setShowFindLawyersModal(false);
+  };
+
+  const handleCaseUpdate = (caseId, newProgress) => {
+    setCaseStatusData(prev => prev.map(caseItem => 
+      caseItem.id === caseId 
+        ? { ...caseItem, progress: newProgress }
+        : caseItem
+    ));
+    Alert.alert('Case Updated', 'Case progress has been updated successfully');
   };
 
   const getCurrentGreeting = () => {
@@ -312,6 +423,7 @@ export default function ClientDashboard() {
       case 'in_progress': return colors.info;
       case 'review': return colors.warning;
       case 'answered': return colors.accent;
+      case 'scheduled': return colors.primary;
       default: return colors.textSecondary;
     }
   };
@@ -330,6 +442,215 @@ export default function ClientDashboard() {
     outputRange: [1, 0.9],
     extrapolate: 'clamp',
   });
+
+  const filteredLawyers = featuredLawyers.filter(lawyer =>
+    lawyer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    lawyer.specialization.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Notifications Modal
+  const NotificationsModal = () => (
+    <Portal>
+      <Modal
+        visible={showNotificationsModal}
+        onDismiss={() => setShowNotificationsModal(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <Surface style={styles.modalSurface}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Notifications</Text>
+            <TouchableOpacity onPress={() => setShowNotificationsModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {notifications.map((notification) => (
+              <TouchableOpacity key={notification.id} style={styles.notificationItem}>
+                <View style={styles.notificationIcon}>
+                  <LinearGradient
+                    colors={notification.unread ? colors.gradient.primary : [colors.textTertiary, colors.textTertiary]}
+                    style={styles.notificationIconGradient}
+                  >
+                    <MaterialCommunityIcons
+                      name={notification.icon}
+                      size={20}
+                      color="white"
+                    />
+                  </LinearGradient>
+                </View>
+                
+                <View style={styles.notificationContent}>
+                  <Text style={[
+                    styles.notificationTitle,
+                    notification.unread && { fontWeight: '700' }
+                  ]}>
+                    {notification.title}
+                  </Text>
+                  <Text style={styles.notificationMessage}>
+                    {notification.message}
+                  </Text>
+                  <Text style={styles.notificationTime}>
+                    {notification.time}
+                  </Text>
+                </View>
+                
+                {notification.unread && (
+                  <View style={styles.unreadIndicator} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Surface>
+      </Modal>
+    </Portal>
+  );
+
+  // Search Modal
+  const SearchModal = () => (
+    <Portal>
+      <Modal
+        visible={showSearchModal}
+        onDismiss={() => setShowSearchModal(false)}
+        contentContainerStyle={styles.fullScreenModal}
+      >
+        <Surface style={styles.searchModalSurface}>
+          <View style={styles.searchModalHeader}>
+            <Searchbar
+              placeholder="Search lawyers, cases, documents..."
+              onChangeText={setSearchQuery}
+              value={searchQuery}
+              style={styles.fullScreenSearchBar}
+              autoFocus={true}
+            />
+            <TouchableOpacity 
+              onPress={() => setShowSearchModal(false)}
+              style={styles.searchCloseButton}
+            >
+              <Text style={styles.searchCloseText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.searchResults}>
+            <Text style={styles.searchSectionTitle}>Lawyers</Text>
+            {filteredLawyers.map((lawyer) => (
+              <TouchableOpacity key={lawyer.id} style={styles.searchResultItem}>
+                <MaterialCommunityIcons name="account-tie" size={20} color={colors.primary} />
+                <View style={styles.searchResultContent}>
+                  <Text style={styles.searchResultTitle}>{lawyer.name}</Text>
+                  <Text style={styles.searchResultSubtitle}>{lawyer.specialization}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+            
+            <Text style={styles.searchSectionTitle}>Cases</Text>
+            {caseStatusData.map((caseItem) => (
+              <TouchableOpacity key={caseItem.id} style={styles.searchResultItem}>
+                <MaterialCommunityIcons name="gavel" size={20} color={colors.info} />
+                <View style={styles.searchResultContent}>
+                  <Text style={styles.searchResultTitle}>{caseItem.title}</Text>
+                  <Text style={styles.searchResultSubtitle}>{caseItem.description}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Surface>
+      </Modal>
+    </Portal>
+  );
+
+  // Consultation Booking Modal
+  const ConsultationModal = () => (
+    <Portal>
+      <Modal
+        visible={showConsultationModal}
+        onDismiss={() => setShowConsultationModal(false)}
+        contentContainerStyle={styles.modalContainer}
+      >
+        <Surface style={styles.modalSurface}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Book Consultation</Text>
+            <TouchableOpacity onPress={() => setShowConsultationModal(false)}>
+              <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+          
+          {selectedLawyer && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.selectedLawyerInfo}>
+                <Avatar.Text
+                  size={60}
+                  label={selectedLawyer.name.split(' ')[1]?.charAt(0) || 'L'}
+                  style={{ backgroundColor: colors.primary }}
+                  labelStyle={{ color: 'white', fontWeight: '700' }}
+                />
+                <View style={styles.selectedLawyerDetails}>
+                  <Text style={styles.selectedLawyerName}>{selectedLawyer.name}</Text>
+                  <Text style={styles.selectedLawyerSpec}>{selectedLawyer.specialization}</Text>
+                  <Text style={styles.selectedLawyerFee}>{selectedLawyer.fee}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.bookingForm}>
+                <Text style={styles.formLabel}>Select Date</Text>
+                <TouchableOpacity style={styles.dateInput} onPress={() => {
+                  // In real app, open date picker
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  setConsultationDate(tomorrow.toDateString());
+                }}>
+                  <MaterialCommunityIcons name="calendar" size={20} color={colors.textSecondary} />
+                  <Text style={styles.dateInputText}>
+                    {consultationDate || 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <Text style={styles.formLabel}>Select Time</Text>
+                <View style={styles.timeSlots}>
+                  {['10:00 AM', '2:00 PM', '4:00 PM', '6:00 PM'].map((time) => (
+                    <TouchableOpacity
+                      key={time}
+                      style={[
+                        styles.timeSlot,
+                        consultationTime === time && styles.selectedTimeSlot
+                      ]}
+                      onPress={() => setConsultationTime(time)}
+                    >
+                      <Text style={[
+                        styles.timeSlotText,
+                        consultationTime === time && styles.selectedTimeSlotText
+                      ]}>
+                        {time}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                
+                <Text style={styles.formLabel}>Add Note (Optional)</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Describe your legal issue briefly..."
+                  multiline
+                  numberOfLines={3}
+                  value={consultationNote}
+                  onChangeText={setConsultationNote}
+                />
+                
+                <Button
+                  mode="contained"
+                  onPress={handleConfirmBooking}
+                  style={styles.bookButton}
+                  labelStyle={styles.bookButtonText}
+                >
+                  Confirm Booking - {selectedLawyer.fee}
+                </Button>
+              </View>
+            </ScrollView>
+          )}
+        </Surface>
+      </Modal>
+    </Portal>
+  );
 
   // Find Lawyers Modal Component
   const FindLawyersModal = () => (
@@ -355,7 +676,7 @@ export default function ClientDashboard() {
           />
           
           <ScrollView showsVerticalScrollIndicator={false}>
-            {featuredLawyers.map((lawyer) => (
+            {filteredLawyers.map((lawyer) => (
               <TouchableOpacity key={lawyer.id} style={styles.lawyerCard} activeOpacity={0.9}>
                 <View style={styles.lawyerInfo}>
                   <View style={styles.lawyerAvatar}>
@@ -405,7 +726,7 @@ export default function ClientDashboard() {
                 
                 <Button
                   mode="contained"
-                  onPress={() => {}}
+                  onPress={() => handleBookConsultation(lawyer)}
                   style={styles.consultButton}
                   labelStyle={styles.consultButtonText}
                 >
@@ -463,9 +784,9 @@ export default function ClientDashboard() {
                 <Text style={styles.caseDescription}>{caseItem.description}</Text>
                 
                 <View style={styles.caseMeta}>
-                  <View style={styles.lawyerInfo}>
+                  <View style={styles.lawyerInfoCase}>
                     <MaterialCommunityIcons name="account-tie" size={16} color={colors.textSecondary} />
-                    <Text style={styles.lawyerName}>{caseItem.lawyer}</Text>
+                    <Text style={styles.lawyerNameCase}>{caseItem.lawyer}</Text>
                   </View>
                   
                   {caseItem.nextHearing && (
@@ -488,6 +809,26 @@ export default function ClientDashboard() {
                     color={getStatusColor(caseItem.status)}
                     style={styles.progressBar}
                   />
+                </View>
+                
+                <View style={styles.caseActions}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => Alert.alert('Case Details', `Viewing details for ${caseItem.title}`)}
+                    style={styles.caseActionButton}
+                    compact
+                  >
+                    View Details
+                  </Button>
+                  
+                  <Button
+                    mode="contained"
+                    onPress={() => handleCaseUpdate(caseItem.id, Math.min(caseItem.progress + 10, 100))}
+                    style={[styles.caseActionButton, { backgroundColor: colors.primary }]}
+                    compact
+                  >
+                    Update Progress
+                  </Button>
                 </View>
               </Surface>
             ))}
@@ -543,7 +884,11 @@ export default function ClientDashboard() {
             </View>
             
             <View style={styles.headerActions}>
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                activeOpacity={0.8}
+                onPress={() => setShowSearchModal(true)}
+              >
                 <LinearGradient
                   colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
                   style={styles.actionButtonGradient}
@@ -552,7 +897,11 @@ export default function ClientDashboard() {
                 </LinearGradient>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.actionButton} activeOpacity={0.8}>
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                activeOpacity={0.8}
+                onPress={() => setShowNotificationsModal(true)}
+              >
                 <LinearGradient
                   colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
                   style={styles.actionButtonGradient}
@@ -573,7 +922,7 @@ export default function ClientDashboard() {
               style={styles.summaryGradient}
             >
               <View style={styles.summaryContent}>
-                <View style={styles.summaryItem}>
+                <TouchableOpacity style={styles.summaryItem} onPress={() => setShowCaseStatusModal(true)}>
                   <View style={styles.summaryIconContainer}>
                     <LinearGradient
                       colors={colors.gradient.primary}
@@ -582,13 +931,13 @@ export default function ClientDashboard() {
                       <MaterialCommunityIcons name="gavel" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>5</Text>
+                  <Text style={styles.summaryValue}>{stats[0].value}</Text>
                   <Text style={styles.summaryLabel}>Active Cases</Text>
-                </View>
+                </TouchableOpacity>
                 
                 <View style={styles.summaryDivider} />
                 
-                <View style={styles.summaryItem}>
+                <TouchableOpacity style={styles.summaryItem} onPress={() => setShowFindLawyersModal(true)}>
                   <View style={styles.summaryIconContainer}>
                     <LinearGradient
                       colors={colors.gradient.success}
@@ -597,13 +946,16 @@ export default function ClientDashboard() {
                       <MaterialCommunityIcons name="calendar-check" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>12</Text>
+                  <Text style={styles.summaryValue}>{stats[1].value}</Text>
                   <Text style={styles.summaryLabel}>Consultations</Text>
-                </View>
+                </TouchableOpacity>
                 
                 <View style={styles.summaryDivider} />
                 
-                <View style={styles.summaryItem}>
+                <TouchableOpacity 
+                  style={styles.summaryItem} 
+                  onPress={() => navigation.navigate('InApp', { screen: SCREEN_NAMES.LEGAL_DOCUMENTS })}
+                >
                   <View style={styles.summaryIconContainer}>
                     <LinearGradient
                       colors={colors.gradient.info}
@@ -612,9 +964,9 @@ export default function ClientDashboard() {
                       <MaterialCommunityIcons name="star" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>4.9</Text>
+                  <Text style={styles.summaryValue}>{stats[3].value}</Text>
                   <Text style={styles.summaryLabel}>Satisfaction</Text>
-                </View>
+                </TouchableOpacity>
               </View>
             </LinearGradient>
           </BlurView>
@@ -638,7 +990,7 @@ export default function ClientDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Your Legal Journey</Text>
-            <TouchableOpacity style={styles.viewAllButton}>
+            <TouchableOpacity style={styles.viewAllButton} onPress={() => setShowCaseStatusModal(true)}>
               <Text style={styles.viewAllText}>View All</Text>
               <MaterialCommunityIcons name="arrow-right" size={16} color={colors.primary} />
             </TouchableOpacity>
@@ -651,7 +1003,10 @@ export default function ClientDashboard() {
             decelerationRate="fast"
           >
             {stats.map((stat, index) => (
-              <TouchableOpacity key={index} activeOpacity={0.9}>
+              <TouchableOpacity key={index} activeOpacity={0.9} onPress={() => {
+                if (stat.label === 'Active Cases') setShowCaseStatusModal(true);
+                else if (stat.label === 'Consultations') setShowFindLawyersModal(true);
+              }}>
                 <View style={styles.statCardContainer}>
                   <LinearGradient
                     colors={stat.gradient}
@@ -729,14 +1084,34 @@ export default function ClientDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Activity</Text>
-            <TouchableOpacity style={styles.filterButton}>
+            <TouchableOpacity style={styles.filterButton} onPress={() => {
+              Alert.alert(
+                'Filter Options',
+                'Choose filter criteria',
+                [
+                  { text: 'All Activities', onPress: () => {} },
+                  { text: 'Cases Only', onPress: () => {} },
+                  { text: 'Consultations Only', onPress: () => {} },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }}>
               <MaterialCommunityIcons name="filter-variant" size={16} color={colors.primary} />
               <Text style={styles.filterText}>Filter</Text>
             </TouchableOpacity>
           </View>
           
           {recentActivity.map((activity) => (
-            <TouchableOpacity key={activity.id} activeOpacity={0.95}>
+            <TouchableOpacity key={activity.id} activeOpacity={0.95} onPress={() => {
+              Alert.alert(
+                activity.title,
+                activity.subtitle,
+                [
+                  { text: 'View Details', onPress: () => {} },
+                  { text: 'Close', style: 'cancel' }
+                ]
+              );
+            }}>
               <Surface style={styles.activityCard}>
                 <View style={styles.activityContent}>
                   <View style={styles.activityMainInfo}>
@@ -804,6 +1179,9 @@ export default function ClientDashboard() {
 
       <FindLawyersModal />
       <CaseStatusModal />
+      <ConsultationModal />
+      <NotificationsModal />
+      <SearchModal />
     </View>
   );
 }
@@ -1317,6 +1695,122 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceVariant,
   },
   
+  // Full Screen Modal Styles
+  fullScreenModal: {
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    flex: 1,
+    margin: 0,
+  },
+  searchModalSurface: {
+    backgroundColor: colors.surface,
+    flex: 1,
+    paddingTop: StatusBar.currentHeight || 44,
+  },
+  searchModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceVariant,
+  },
+  fullScreenSearchBar: {
+    flex: 1,
+    backgroundColor: colors.surfaceVariant,
+    elevation: 0,
+  },
+  searchCloseButton: {
+    marginLeft: 16,
+    paddingVertical: 8,
+  },
+  searchCloseText: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  searchResults: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  searchSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  searchResultContent: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  searchResultTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  searchResultSubtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  
+  // Notification Modal Styles
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceVariant,
+    position: 'relative',
+  },
+  notificationIcon: {
+    marginRight: 16,
+  },
+  notificationIconGradient: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  notificationMessage: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  notificationTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
+  },
+  unreadIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    position: 'absolute',
+    right: 20,
+    top: 20,
+  },
+  
   // Find Lawyers Modal Styles
   lawyerCard: {
     backgroundColor: colors.surface,
@@ -1425,6 +1919,108 @@ const styles = StyleSheet.create({
     color: 'white',
   },
   
+  // Consultation Booking Modal Styles
+  selectedLawyerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+  },
+  selectedLawyerDetails: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  selectedLawyerName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  selectedLawyerSpec: {
+    fontSize: 14,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  selectedLawyerFee: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.accent,
+    marginTop: 4,
+  },
+  bookingForm: {
+    flex: 1,
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  dateInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginBottom: 20,
+  },
+  dateInputText: {
+    marginLeft: 12,
+    fontSize: 16,
+    color: colors.text,
+  },
+  timeSlots: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+  },
+  timeSlot: {
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  selectedTimeSlot: {
+    backgroundColor: colors.primary + '20',
+    borderColor: colors.primary,
+  },
+  timeSlotText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  selectedTimeSlotText: {
+    color: colors.primary,
+  },
+  noteInput: {
+    backgroundColor: colors.surfaceVariant,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    textAlignVertical: 'top',
+    marginBottom: 24,
+    minHeight: 80,
+  },
+  bookButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 6,
+  },
+  bookButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+  },
+  
   // Case Status Modal Styles
   caseCard: {
     backgroundColor: colors.surface,
@@ -1491,11 +2087,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  lawyerInfo: {
+  lawyerInfoCase: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  lawyerName: {
+  lawyerNameCase: {
     fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '600',
@@ -1515,5 +2111,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceVariant,
     padding: 12,
     borderRadius: 12,
+    marginBottom: 16,
+  },
+  caseActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  caseActionButton: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: 8,
   },
 });

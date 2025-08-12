@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can read/write their own data
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null; // Allow reading other profiles
+    }
+    
+    // Posts - anyone authenticated can read, only author can write
+    match /posts/{postId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == resource.data.authorId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+    }
+    
+    // Cases - only lawyer and client can access
+    match /cases/{caseId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid == resource.data.lawyerId || request.auth.uid == resource.data.clientId);
+    }
+    
+    // Conversations - only participants can access
+    match /conversations/{conversationId} {
+      allow read, write: if request.auth != null && 
+        request.auth.uid in resource.data.participants;
+      
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && 
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
+      }
+    }
+    
+    // Transactions - only involved parties can access
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && 
+        (request.auth.uid == resource.data.lawyerId || request.auth.uid == resource.data.clientId);
+      allow create: if request.auth != null;
+    }
+  }
+}
