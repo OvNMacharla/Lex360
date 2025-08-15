@@ -208,6 +208,7 @@ async updateCase(caseId, patch) {
   try {
     // Validate inputs
     if (!caseId) throw new Error('Case ID is required');
+    console.log('Patch data:', patch);
     if (!patch || typeof patch !== 'object') throw new Error('Invalid patch data');
 
     const currentUser = auth.currentUser;

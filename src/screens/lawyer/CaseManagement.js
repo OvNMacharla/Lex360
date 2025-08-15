@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
   View,
   StyleSheet,
@@ -35,13 +36,14 @@ import {
   Switch,
   Checkbox
 } from 'react-native-paper';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useSelector, useDispatch } from 'react-redux';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { createCase,updateCase, deleteCase, getUserCases } from '../../store/caseSlice';
+import { createCase,updateCase, deleteCase, getUserCases, addSubtask } from '../../store/caseSlice';
 const { width, height } = Dimensions.get('window');
 
 // Enhanced color palette
@@ -156,8 +158,7 @@ export default function CaseManagement({ navigation }) {
   // Enhanced modals state
   const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
   const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
-  const [showAddTimelineModal, setShowAddTimelineModal] = useState(false);
-  const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
+  // const [showAddTimelineModal, setShowAddTimelineModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   // Form states
@@ -183,139 +184,11 @@ export default function CaseManagement({ navigation }) {
   const [teamInput, setTeamInput] = useState('');
   const [cases, setCases] = useState([]);
 
-  // Document form state
-  const [documentForm, setDocumentForm] = useState({
-    name: '',
-    description: '',
-    category: 'legal',
-    isPublic: false,
-    file: null
-  });
-
-  // Subtask form state
-  const [subtaskForm, setSubtaskForm] = useState({
-    title: '',
-    description: '',
-    assignedTo: '',
-    dueDate: '',
-    priority: 'medium',
-    category: 'research'
-  });
-
-  // Timeline form state
-  const [timelineForm, setTimelineForm] = useState({
-    type: 'custom',
-    title: '',
-    description: '',
-    date: new Date().toISOString().split('T')[0],
-    status: 'completed'
-  });
-
   // Mock data for demonstration
   useEffect(() => {
-    // Initialize with mock data
-    const mockCases = [
-      {
-        id: '1',
-        title: 'Corporate Merger Agreement',
-        client: 'TechCorp India Ltd.',
-        caseNumber: 'CSE/2024/001',
-        type: 'corporate',
-        status: 'active',
-        priority: 'high',
-        value: '₹50,00,000',
-        progress: 65,
-        nextHearing: '2024-08-20',
-        description: 'Complex corporate merger involving due diligence and regulatory compliance.',
-        createdAt: '2024-07-15',
-        lastUpdated: '2024-08-14',
-        team: ['Adv. Rajesh Kumar', 'Adv. Priya Sharma', 'Jr. Associate John'],
-        documents: 12,
-        subtasks: [
-          {
-            id: 'st1',
-            title: 'Due Diligence Review',
-            description: 'Complete financial and legal due diligence',
-            assignedTo: 'Adv. Priya Sharma',
-            dueDate: '2024-08-18',
-            priority: 'high',
-            category: 'research',
-            status: 'in-progress',
-            completedAt: null,
-            createdAt: '2024-08-10'
-          },
-          {
-            id: 'st2',
-            title: 'Draft Merger Documents',
-            description: 'Prepare merger agreement and ancillary documents',
-            assignedTo: 'Adv. Rajesh Kumar',
-            dueDate: '2024-08-25',
-            priority: 'medium',
-            category: 'drafting',
-            status: 'pending',
-            completedAt: null,
-            createdAt: '2024-08-12'
-          }
-        ],
-        attachments: [
-          {
-            id: 'doc1',
-            name: 'Merger Agreement Draft.pdf',
-            size: '2.5 MB',
-            type: 'pdf',
-            category: 'legal',
-            uploadedBy: 'Adv. Rajesh Kumar',
-            uploadedAt: '2024-08-10',
-            isPublic: false,
-            description: 'Initial draft of merger agreement'
-          },
-          {
-            id: 'doc2',
-            name: 'Financial Statements.xlsx',
-            size: '1.2 MB',
-            type: 'excel',
-            category: 'financial',
-            uploadedBy: 'Jr. Associate John',
-            uploadedAt: '2024-08-12',
-            isPublic: true,
-            description: 'Consolidated financial statements'
-          }
-        ],
-        timeline: [
-          {
-            id: 't1',
-            type: 'case_created',
-            title: 'Case Created',
-            description: 'Case opened for corporate merger proceedings',
-            date: '2024-07-15',
-            status: 'completed',
-            createdBy: 'Adv. Rajesh Kumar'
-          },
-          {
-            id: 't2',
-            type: 'hearing_scheduled',
-            title: 'Initial Hearing Scheduled',
-            description: 'First hearing scheduled with regulatory authority',
-            date: '2024-08-05',
-            status: 'completed',
-            createdBy: 'Adv. Rajesh Kumar'
-          },
-          {
-            id: 't3',
-            type: 'document_filed',
-            title: 'Merger Application Filed',
-            description: 'Application filed with Competition Commission',
-            date: '2024-08-10',
-            status: 'completed',
-            createdBy: 'Adv. Priya Sharma'
-          }
-        ]
-      }
-    ];
     if (user?.uid && user?.role) {
       fetchCases();
     }
-    setCases(mockCases);
   }, [user, dispatch]);
 
   // Utility functions
@@ -566,118 +439,8 @@ function handleSaveEdit(localForm) {
     extrapolate: 'clamp'
   });
 
-  // Document handling functions
-  const handleDocumentPick = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-        multiple: false
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        setDocumentForm(prev => ({
-          ...prev,
-          file: file,
-          name: file.name || 'Document'
-        }));
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to pick document');
-    }
-  };
-
-  const handleDocumentUpload = async () => {
-    if (!documentForm.file || !documentForm.name.trim()) {
-      Alert.alert('Validation Error', 'Please select a file and provide a name');
-      return;
-    }
-
-    setIsUploading(true);
-    setDocumentUploadProgress(0);
-
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
-      setDocumentUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(progressInterval);
-          return 90;
-        }
-        return prev + 10;
-      });
-    }, 200);
-
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newDocument = {
-        id: `doc_${Date.now()}`,
-        name: documentForm.name,
-        size: documentForm.file.size ? `${(documentForm.file.size / 1024 / 1024).toFixed(1)} MB` : 'Unknown',
-        type: documentForm.file.mimeType?.includes('pdf') ? 'pdf' : 
-              documentForm.file.mimeType?.includes('excel') || documentForm.file.name?.includes('.xlsx') ? 'excel' :
-              documentForm.file.mimeType?.includes('word') ? 'word' : 'document',
-        category: documentForm.category,
-        uploadedBy: user?.name || 'Current User',
-        uploadedAt: new Date().toISOString().split('T')[0],
-        isPublic: documentForm.isPublic,
-        description: documentForm.description,
-        uri: documentForm.file.uri
-      };
-
-      // Update selected case
-      const updatedCase = {
-        ...selectedCase,
-        attachments: [...(selectedCase.attachments || []), newDocument],
-        documents: (selectedCase.documents || 0) + 1
-      };
-
-      // Update cases array
-      setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-      setSelectedCase(updatedCase);
-
-      // Add timeline event
-      const timelineEvent = {
-        id: `t_${Date.now()}`,
-        type: 'document_filed',
-        title: 'Document Uploaded',
-        description: `${documentForm.name} has been uploaded`,
-        date: new Date().toISOString().split('T')[0],
-        status: 'completed',
-        createdBy: user?.name || 'Current User'
-      };
-
-      updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
-      setSelectedCase({...updatedCase});
-      setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-
-      setDocumentUploadProgress(100);
-      setTimeout(() => {
-        setShowAddDocumentModal(false);
-        setDocumentForm({
-          name: '',
-          description: '',
-          category: 'legal',
-          isPublic: false,
-          file: null
-        });
-        setIsUploading(false);
-        setDocumentUploadProgress(0);
-        setSnackbar({ visible: true, text: 'Document uploaded successfully' });
-      }, 500);
-
-    } catch (error) {
-      clearInterval(progressInterval);
-      setIsUploading(false);
-      setDocumentUploadProgress(0);
-      Alert.alert('Upload Failed', 'Failed to upload document');
-    }
-  };
-
   // Subtask handling functions
-  const handleCreateSubtask = () => {
+  const handleCreateSubtask = (subtaskForm, setSubtaskForm) => {
     if (!subtaskForm.title.trim()) {
       Alert.alert('Validation Error', 'Please enter subtask title');
       return;
@@ -694,7 +457,7 @@ function handleSaveEdit(localForm) {
       status: 'pending',
       completedAt: null,
       createdAt: new Date().toISOString().split('T')[0],
-      createdBy: user?.name || 'Current User'
+      createdBy: user?.uid || 'Current User'
     };
 
     // Update selected case
@@ -720,6 +483,36 @@ function handleSaveEdit(localForm) {
     updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
     setSelectedCase({...updatedCase});
     setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+
+    dispatch(updateCase({ caseId:updatedCase.id, patchData:updatedCase }))
+    .unwrap()
+    .then((response) => {
+      console.log('=== Update Success ===');
+      console.log('Full response:', JSON.stringify(response, null, 2));
+      
+      if (response && response.success) {
+        console.log('Update confirmed successful');
+        setShowEditModal(false);
+        setEditForm(null);
+        setSnackbar({ visible: true, text: 'Case updated successfully' });
+      } else {
+        console.error('Update failed - no success confirmation:', response);
+        Alert.alert('Error', 'Update failed - no success confirmation');
+      }
+    })
+    .catch((error) => {
+      console.log('=== Update Error ===');
+      console.error('Caught error:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      
+      const errorMessage = typeof error === 'string' 
+        ? error 
+        : error?.message || error?.toString() || 'Failed to update case';
+        
+      console.error('Final error message:', errorMessage);
+      Alert.alert('Error', errorMessage);
+    });
 
     setShowAddSubtaskModal(false);
     setSubtaskForm({
@@ -765,43 +558,73 @@ function handleSaveEdit(localForm) {
     updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
     setSelectedCase({...updatedCase});
     setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-  };
 
-  // Timeline handling functions
-  const handleAddTimelineEvent = () => {
-    if (!timelineForm.title.trim()) {
-      Alert.alert('Validation Error', 'Please enter event title');
-      return;
-    }
-
-    const newTimelineEvent = {
-      id: `t_${Date.now()}`,
-      type: timelineForm.type,
-      title: timelineForm.title,
-      description: timelineForm.description,
-      date: timelineForm.date,
-      status: timelineForm.status,
-      createdBy: user?.name || 'Current User'
-    };
-
-    const updatedCase = {
-      ...selectedCase,
-      timeline: [...(selectedCase.timeline || []), newTimelineEvent].sort((a, b) => new Date(b.date) - new Date(a.date))
-    };
-
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-    setSelectedCase(updatedCase);
-
-    setShowAddTimelineModal(false);
-    setTimelineForm({
-      type: 'custom',
-      title: '',
-      description: '',
-      date: new Date().toISOString().split('T')[0],
-      status: 'completed'
+    dispatch(updateCase({ caseId:updatedCase.id, patchData:updatedCase }))
+    .unwrap()
+    .then((response) => {
+      console.log('=== Update Success ===');
+      console.log('Full response:', JSON.stringify(response, null, 2));
+      
+      if (response && response.success) {
+        console.log('Update confirmed successful');
+        setShowEditModal(false);
+        setEditForm(null);
+        setSnackbar({ visible: true, text: 'Case updated successfully' });
+      } else {
+        console.error('Update failed - no success confirmation:', response);
+        Alert.alert('Error', 'Update failed - no success confirmation');
+      }
+    })
+    .catch((error) => {
+      console.log('=== Update Error ===');
+      console.error('Caught error:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error keys:', Object.keys(error || {}));
+      
+      const errorMessage = typeof error === 'string' 
+        ? error 
+        : error?.message || error?.toString() || 'Failed to update case';
+        
+      console.error('Final error message:', errorMessage);
+      Alert.alert('Error', errorMessage);
     });
-    setSnackbar({ visible: true, text: 'Timeline event added successfully' });
   };
+
+  // // Timeline handling functions
+  // const handleAddTimelineEvent = () => {
+  //   if (!timelineForm.title.trim()) {
+  //     Alert.alert('Validation Error', 'Please enter event title');
+  //     return;
+  //   }
+
+  //   const newTimelineEvent = {
+  //     id: `t_${Date.now()}`,
+  //     type: timelineForm.type,
+  //     title: timelineForm.title,
+  //     description: timelineForm.description,
+  //     date: timelineForm.date,
+  //     status: timelineForm.status,
+  //     createdBy: user?.name || 'Current User'
+  //   };
+
+  //   const updatedCase = {
+  //     ...selectedCase,
+  //     timeline: [...(selectedCase.timeline || []), newTimelineEvent].sort((a, b) => new Date(b.date) - new Date(a.date))
+  //   };
+
+  //   setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+  //   setSelectedCase(updatedCase);
+
+  //   setShowAddTimelineModal(false);
+  //   setTimelineForm({
+  //     type: 'custom',
+  //     title: '',
+  //     description: '',
+  //     date: new Date().toISOString().split('T')[0],
+  //     status: 'completed'
+  //   });
+  //   setSnackbar({ visible: true, text: 'Timeline event added successfully' });
+  // };
 
   // Enhanced Case Details Modal
   function CaseDetailsModal() {
@@ -1060,21 +883,21 @@ function handleSaveEdit(localForm) {
                 <View style={styles.tabContent}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Case Timeline</Text>
-                    {canAddContent && (
+                    {/* {canAddContent && (
                       <TouchableOpacity 
                         style={styles.addButton}
                         onPress={() => setShowAddTimelineModal(true)}
                       >
                         <MaterialCommunityIcons name="plus" size={20} color="white" />
                       </TouchableOpacity>
-                    )}
+                    )} */}
                   </View>
 
-                  {selectedCase.timeline?.sort((a, b) => new Date(b.date) - new Date(a.date)).map((event, index) => {
+                  {(selectedCase.timeline ?? []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)).map((event, index) => {
                     const eventInfo = getTimelineEventInfo(event.type);
                     return (
                       <Animated.View
-                        key={event.id}
+                        key={`${event.id}_${index}`}
                         style={[
                           styles.timelineItem,
                           { opacity: timelineAnimations[index] || 1 }
@@ -1098,7 +921,7 @@ function handleSaveEdit(localForm) {
                         <Surface style={styles.timelineContent}>
                           <View style={styles.timelineHeader}>
                             <Text style={styles.timelineDate}>{event.date}</Text>
-                            <Chip 
+                            {/* <Chip 
                               compact 
                               style={[
                                 styles.timelineStatus,
@@ -1110,7 +933,7 @@ function handleSaveEdit(localForm) {
                               }}
                             >
                               {event.status}
-                            </Chip>
+                            </Chip> */}
                           </View>
                           <Text style={styles.timelineTitle}>{event.title}</Text>
                           {event.description && (
@@ -1339,7 +1162,18 @@ function handleSaveEdit(localForm) {
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [showStatusSelector, setShowStatusSelector] = useState(false);
     const [showPrioritySelector, setShowPrioritySelector] = useState(false);
+    const [showPicker, setShowPicker] = useState(false);
 
+    const handleChange = (event, selectedDate) => {
+      setShowPicker(false); // hide after selecting or canceling
+      if (selectedDate) {
+        setLocalForm(prev => ({
+          ...prev,
+          nextHearing: selectedDate.toISOString().split('T')[0] // store as YYYY-MM-DD
+        }));
+      }
+    };
+    
     useEffect(() => {
       if (visible) {
         setLocalForm(isEdit ? editForm : form);
@@ -1652,13 +1486,23 @@ function handleSaveEdit(localForm) {
 
                   <View style={styles.inputContainer}>
                     <Text style={styles.inputLabel}>Next Hearing Date</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={localForm.nextHearing}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, nextHearing: text }))}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={colors.textTertiary}
-                    />
+                    <TouchableOpacity onPress={() => setShowPicker(true)}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={localForm.nextHearing}
+                          editable={false}
+                          placeholder="YYYY-MM-DD"
+                          placeholderTextColor={colors.textTertiary}
+                        />
+                      </TouchableOpacity>
+                     {showPicker && (
+                      <DateTimePicker
+                        value={localForm.nextHearing ? new Date(localForm.nextHearing) : new Date()}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+                        onChange={handleChange}
+                      />
+                    )}
                   </View>
                 </Surface>
 
@@ -1736,6 +1580,155 @@ function handleSaveEdit(localForm) {
 
   // Add Document Modal
   function AddDocumentModal() {
+
+    
+  const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
+     // Document form state
+    const [documentForm, setDocumentForm] = useState({
+        name: '',
+        description: '',
+        category: 'legal',
+        isPublic: false,
+        file: null
+      });
+
+
+        // Document handling functions
+    const handleDocumentPick = async () => {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: '*/*',
+          copyToCacheDirectory: true,
+          multiple: false
+        });
+
+        if (!result.canceled && result.assets?.length > 0) {
+          const file = result.assets[0];
+
+          // Block videos
+          if (file.mimeType && file.mimeType.startsWith('video/')) {
+            Alert.alert('Invalid File', 'Video files are not allowed.');
+            return;
+          }
+
+          setDocumentForm(prev => ({
+            ...prev,
+            file: file,
+            name: file.name || 'Document'
+          }));
+        }
+      } catch (error) {
+        Alert.alert('Error', 'Failed to pick document');
+      }
+    };
+
+  const handleDocumentUpload = async () => {
+    if (!documentForm.file || !documentForm.name.trim()) {
+      Alert.alert('Validation Error', 'Please select a file and provide a name');
+      return;
+    }
+
+    setIsUploading(true);
+    setDocumentUploadProgress(0);
+
+    try {
+      const storage = getStorage(); // Uses your initialized Firebase app
+      const { uri, name } = documentForm.file;
+      const fileName = name || `document_${Date.now()}`;
+      const uploadUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
+
+      // Fetch the file data into a Blob (firebase/storage requires Blob in RN)
+      const response = await fetch(uploadUri);
+      const blob = await response.blob();
+
+      // Create a storage reference
+      const storageRef = ref(storage, `cases/${selectedCase.id}/documents/${fileName}`);
+
+      // Start upload
+      const uploadTask = uploadBytesResumable(storageRef, blob);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setDocumentUploadProgress(Math.floor(progress));
+        },
+        (error) => {
+          console.error('Upload error:', error);
+          setIsUploading(false);
+          setDocumentUploadProgress(0);
+          Alert.alert('Upload Failed', error.message);
+        },
+        async () => {
+          // Get download URL
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+
+          const newDocument = {
+            id: `doc_${Date.now()}`,
+            name: documentForm.name,
+            size: documentForm.file.size
+              ? `${(documentForm.file.size / 1024 / 1024).toFixed(1)} MB`
+              : 'Unknown',
+            type: documentForm.file.mimeType?.includes('pdf')
+              ? 'pdf'
+              : documentForm.file.mimeType?.includes('excel') || documentForm.file.name?.includes('.xlsx')
+              ? 'excel'
+              : documentForm.file.mimeType?.includes('word')
+              ? 'word'
+              : 'document',
+            category: documentForm.category,
+            uploadedBy: user?.name || 'Current User',
+            uploadedAt: new Date().toISOString().split('T')[0],
+            isPublic: documentForm.isPublic,
+            description: documentForm.description,
+            uri: downloadURL, // ✅ Public URL from Firebase
+          };
+
+          const updatedCase = {
+            ...selectedCase,
+            attachments: [...(selectedCase.attachments || []), newDocument],
+            documents: (selectedCase.documents || 0) + 1,
+          };
+
+          updatedCase.timeline = [
+            ...(updatedCase.timeline || []),
+            {
+              id: `t_${Date.now()}`,
+              type: 'document_filed',
+              title: 'Document Uploaded',
+              description: `${documentForm.name} has been uploaded`,
+              date: new Date().toISOString().split('T')[0],
+              status: 'completed',
+              createdBy: user?.name || 'Current User',
+            },
+          ];
+
+          await dispatch(updateCase({ caseId: updatedCase.id, patchData: updatedCase })).unwrap();
+
+          setDocumentUploadProgress(100);
+          setTimeout(() => {
+            setShowAddDocumentModal(false);
+            setDocumentForm({
+              name: '',
+              description: '',
+              category: 'legal',
+              isPublic: false,
+              file: null,
+            });
+            setIsUploading(false);
+            setDocumentUploadProgress(0);
+            setSnackbar({ visible: true, text: 'Document uploaded successfully' });
+          }, 500);
+        }
+      );
+    } catch (error) {
+      console.error('Upload failed:', error);
+      setIsUploading(false);
+      setDocumentUploadProgress(0);
+      Alert.alert('Upload Failed', error.message || 'Failed to upload document');
+    }
+  };
+      
     return (
       <Modal visible={showAddDocumentModal} animationType="slide" statusBarTranslucent>
         <View style={styles.modalOverlay}>
@@ -1875,6 +1868,27 @@ function handleSaveEdit(localForm) {
 
   // Add Subtask Modal
   function AddSubtaskModal() {
+     // Subtask form state
+      const [subtaskForm, setSubtaskForm] = useState({
+        title: '',
+        description: '',
+        assignedTo: '',
+        dueDate: '',
+        priority: 'medium',
+        category: 'research'
+      });
+     const [showPicker, setShowPicker] = useState(false);
+
+    const handleChange = (event, selectedDate) => {
+      setShowPicker(false); // hide after selecting or canceling
+      if (selectedDate) {
+        setSubtaskForm(prev => ({
+          ...prev,
+          dueDate: selectedDate.toISOString().split('T')[0] // store as YYYY-MM-DD
+        }));
+      }
+    };
+
     return (
       <Modal visible={showAddSubtaskModal} animationType="slide" statusBarTranslucent>
         <View style={styles.modalOverlay}>
@@ -1925,13 +1939,23 @@ function handleSaveEdit(localForm) {
                   <View style={styles.formRow}>
                     <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                       <Text style={styles.formLabel}>Due Date</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        value={subtaskForm.dueDate}
-                        onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, dueDate: text }))}
-                        placeholder="YYYY-MM-DD"
-                        placeholderTextColor={colors.textTertiary}
+                      <TouchableOpacity onPress={() => setShowPicker(true)}>
+                        <TextInput
+                          style={styles.textInput}
+                          value={subtaskForm.dueDate}
+                          editable={false}
+                          placeholder="YYYY-MM-DD"
+                          placeholderTextColor={colors.textTertiary}
+                        />
+                      </TouchableOpacity>
+                     {showPicker && (
+                      <DateTimePicker
+                        value={subtaskForm.dueDate ? new Date(subtaskForm.dueDate) : new Date()}
+                        mode="date"
+                        display={Platform.OS === 'ios' ? 'spinner' : 'calendar'}
+                        onChange={handleChange}
                       />
+                    )}
                     </View>
 
                     <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
@@ -1992,7 +2016,7 @@ function handleSaveEdit(localForm) {
 
                   <TouchableOpacity 
                     style={styles.addModalSave}
-                    onPress={handleCreateSubtask}
+                    onPress={() =>handleCreateSubtask(subtaskForm, setSubtaskForm)}
                   >
                     <LinearGradient colors={colors.gradient.primary} style={styles.addModalSaveGradient}>
                       <Text style={styles.addModalSaveText}>Create Task</Text>
@@ -2005,140 +2029,148 @@ function handleSaveEdit(localForm) {
     );
   }
 
-  // Add Timeline Event Modal
-  function AddTimelineModal() {
-    return (
-      <Modal visible={showAddTimelineModal} animationType="slide" statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
-            <View style={styles.addModalHeader}>
-                  <Text style={styles.addModalTitle}>Add Timeline Event</Text>
-                  <TouchableOpacity onPress={() => setShowAddTimelineModal(false)}>
-                    <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
+  // // Add Timeline Event Modal
+  // function AddTimelineModal() {
+  //   // Timeline form state
+  // const [timelineForm, setTimelineForm] = useState({
+  //   type: 'custom',
+  //   title: '',
+  //   description: '',
+  //   date: new Date().toISOString().split('T')[0],
+  //   status: 'completed'
+  // });
+  //   return (
+  //     <Modal visible={showAddTimelineModal} animationType="slide" statusBarTranslucent>
+  //       <View style={styles.modalOverlay}>
+  //         <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
+  //           <View style={styles.addModalHeader}>
+  //                 <Text style={styles.addModalTitle}>Add Timeline Event</Text>
+  //                 <TouchableOpacity onPress={() => setShowAddTimelineModal(false)}>
+  //                   <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+  //                 </TouchableOpacity>
+  //               </View>
 
-                <ScrollView style={styles.addModalScroll}>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Event Type</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                      <View style={styles.eventTypeChips}>
-                        {timelineEventTypes.map((eventType) => (
-                          <TouchableOpacity
-                            key={eventType.id}
-                            onPress={() => setTimelineForm(prev => ({ ...prev, type: eventType.id }))}
-                          >
-                            <Chip
-                              selected={timelineForm.type === eventType.id}
-                              style={[
-                                styles.eventTypeChip,
-                                timelineForm.type === eventType.id && { backgroundColor: eventType.color + '15' }
-                              ]}
-                              textStyle={{
-                                color: timelineForm.type === eventType.id ? eventType.color : colors.text
-                              }}
-                              icon={eventType.icon}
-                            >
-                              {eventType.label}
-                            </Chip>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </ScrollView>
-                  </View>
+  //               <ScrollView style={styles.addModalScroll}>
+  //                 <View style={styles.formGroup}>
+  //                   <Text style={styles.formLabel}>Event Type</Text>
+  //                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+  //                     <View style={styles.eventTypeChips}>
+  //                       {timelineEventTypes.map((eventType) => (
+  //                         <TouchableOpacity
+  //                           key={eventType.id}
+  //                           onPress={() => setTimelineForm(prev => ({ ...prev, type: eventType.id }))}
+  //                         >
+  //                           <Chip
+  //                             selected={timelineForm.type === eventType.id}
+  //                             style={[
+  //                               styles.eventTypeChip,
+  //                               timelineForm.type === eventType.id && { backgroundColor: eventType.color + '15' }
+  //                             ]}
+  //                             textStyle={{
+  //                               color: timelineForm.type === eventType.id ? eventType.color : colors.text
+  //                             }}
+  //                             icon={eventType.icon}
+  //                           >
+  //                             {eventType.label}
+  //                           </Chip>
+  //                         </TouchableOpacity>
+  //                       ))}
+  //                     </View>
+  //                   </ScrollView>
+  //                 </View>
 
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Event Title *</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={timelineForm.title}
-                      onChangeText={(text) => setTimelineForm(prev => ({ ...prev, title: text }))}
-                      placeholder="Enter event title"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
+  //                 <View style={styles.formGroup}>
+  //                   <Text style={styles.formLabel}>Event Title *</Text>
+  //                   <TextInput
+  //                     style={styles.formInput}
+  //                     value={timelineForm.title}
+  //                     onChangeText={(text) => setTimelineForm(prev => ({ ...prev, title: text }))}
+  //                     placeholder="Enter event title"
+  //                     placeholderTextColor={colors.textTertiary}
+  //                   />
+  //                 </View>
 
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Description</Text>
-                    <TextInput
-                      style={[styles.formInput, styles.formTextArea]}
-                      value={timelineForm.description}
-                      onChangeText={(text) => setTimelineForm(prev => ({ ...prev, description: text }))}
-                      placeholder="Provide details about this event"
-                      placeholderTextColor={colors.textTertiary}
-                      multiline
-                      numberOfLines={3}
-                    />
-                  </View>
+  //                 <View style={styles.formGroup}>
+  //                   <Text style={styles.formLabel}>Description</Text>
+  //                   <TextInput
+  //                     style={[styles.formInput, styles.formTextArea]}
+  //                     value={timelineForm.description}
+  //                     onChangeText={(text) => setTimelineForm(prev => ({ ...prev, description: text }))}
+  //                     placeholder="Provide details about this event"
+  //                     placeholderTextColor={colors.textTertiary}
+  //                     multiline
+  //                     numberOfLines={3}
+  //                   />
+  //                 </View>
 
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                      <Text style={styles.formLabel}>Date</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        value={timelineForm.date}
-                        onChangeText={(text) => setTimelineForm(prev => ({ ...prev, date: text }))}
-                        placeholder="YYYY-MM-DD"
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
+  //                 <View style={styles.formRow}>
+  //                   <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+  //                     <Text style={styles.formLabel}>Date</Text>
+  //                     <TextInput
+  //                       style={styles.formInput}
+  //                       value={timelineForm.date}
+  //                       onChangeText={(text) => setTimelineForm(prev => ({ ...prev, date: text }))}
+  //                       placeholder="YYYY-MM-DD"
+  //                       placeholderTextColor={colors.textTertiary}
+  //                     />
+  //                   </View>
 
-                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                      <Text style={styles.formLabel}>Status</Text>
-                      <View style={styles.statusButtons}>
-                        {['completed', 'active', 'pending'].map((status) => (
-                          <TouchableOpacity
-                            key={status}
-                            style={[
-                              styles.statusButton,
-                              timelineForm.status === status && styles.statusButtonSelected
-                            ]}
-                            onPress={() => setTimelineForm(prev => ({ ...prev, status }))}
-                          >
-                            <MaterialCommunityIcons 
-                              name={
-                                status === 'completed' ? 'check-circle' :
-                                status === 'active' ? 'play-circle' : 'clock-outline'
-                              }
-                              size={16} 
-                              color={timelineForm.status === status ? 'white' : colors.textSecondary}
-                            />
-                            <Text style={[
-                              styles.statusButtonText,
-                              timelineForm.status === status && styles.statusButtonTextSelected
-                            ]}>
-                              {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                </ScrollView>
+  //                   <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+  //                     <Text style={styles.formLabel}>Status</Text>
+  //                     <View style={styles.statusButtons}>
+  //                       {['completed', 'active', 'pending'].map((status) => (
+  //                         <TouchableOpacity
+  //                           key={status}
+  //                           style={[
+  //                             styles.statusButton,
+  //                             timelineForm.status === status && styles.statusButtonSelected
+  //                           ]}
+  //                           onPress={() => setTimelineForm(prev => ({ ...prev, status }))}
+  //                         >
+  //                           <MaterialCommunityIcons 
+  //                             name={
+  //                               status === 'completed' ? 'check-circle' :
+  //                               status === 'active' ? 'play-circle' : 'clock-outline'
+  //                             }
+  //                             size={16} 
+  //                             color={timelineForm.status === status ? 'white' : colors.textSecondary}
+  //                           />
+  //                           <Text style={[
+  //                             styles.statusButtonText,
+  //                             timelineForm.status === status && styles.statusButtonTextSelected
+  //                           ]}>
+  //                             {status.charAt(0).toUpperCase() + status.slice(1)}
+  //                           </Text>
+  //                         </TouchableOpacity>
+  //                       ))}
+  //                     </View>
+  //                   </View>
+  //                 </View>
+  //               </ScrollView>
 
-                <View style={styles.addModalActions}>
-                  <TouchableOpacity 
-                    style={styles.addModalCancel}
-                    onPress={() => setShowAddTimelineModal(false)}
-                  >
-                    <Text style={styles.addModalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
+  //               <View style={styles.addModalActions}>
+  //                 <TouchableOpacity 
+  //                   style={styles.addModalCancel}
+  //                   onPress={() => setShowAddTimelineModal(false)}
+  //                 >
+  //                   <Text style={styles.addModalCancelText}>Cancel</Text>
+  //                 </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    style={styles.addModalSave}
-                    onPress={handleAddTimelineEvent}
-                  >
-                    <LinearGradient colors={colors.gradient.primary} style={styles.addModalSaveGradient}>
-                      <Text style={styles.addModalSaveText}>Add Event</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
+  //                 <TouchableOpacity 
+  //                   style={styles.addModalSave}
+  //                   onPress={handleAddTimelineEvent}
+  //                 >
+  //                   <LinearGradient colors={colors.gradient.primary} style={styles.addModalSaveGradient}>
+  //                     <Text style={styles.addModalSaveText}>Add Event</Text>
+  //                   </LinearGradient>
+  //                 </TouchableOpacity>
+  //               </View>
 
-            </LinearGradient>
-        </View>
-      </Modal>
-    );
-  }
+  //           </LinearGradient>
+  //       </View>
+  //     </Modal>
+  //   );
+  // }
 
   // Basic handlers (keeping original functionality)
   function handleBack() {
@@ -2652,7 +2684,7 @@ const renderCaseCard = ({ item, index }) => {
       <CaseDetailsModal />
       <AddDocumentModal />
       <AddSubtaskModal />
-      <AddTimelineModal />
+      {/* <AddTimelineModal /> */}
 
       <Snackbar 
         visible={snackbar.visible} 
@@ -3217,7 +3249,7 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   priorityChip: {
-    height: 24
+    height: 35
   },
   subtaskMeta: {
     flexDirection: 'row',
@@ -3317,6 +3349,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
     paddingBottom: 16,
+    paddingTop: StatusBar.currentHeight + 20 || 64,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.08)'
   },
@@ -3332,7 +3365,8 @@ const styles = StyleSheet.create({
   
   // Form Styles
   formGroup: {
-    marginBottom: 20
+    marginBottom: 20,
+    marginTop: 20
   },
   formLabel: {
     fontSize: 16,
