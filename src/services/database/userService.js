@@ -116,7 +116,21 @@ class UserService {
       return { success: false, error: error.message };
     }
   }
-
+  
+  async getAllUsers() {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'users'));
+      const users = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      return { success: true, data: users };
+    } catch (error) {
+      console.error('Get all users error:', error);
+      return { success: false, error: this.getErrorMessage(error) };
+    }
+  }
+  
   // Save Expo push token
   async saveExpoPushToken(userId, token) {
     try {

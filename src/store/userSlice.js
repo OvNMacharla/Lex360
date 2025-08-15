@@ -54,6 +54,23 @@ export const getLawyers = createAsyncThunk(
   }
 );
 
+export const getAllUsers = createAsyncThunk(
+  'user/getAllUsers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await userService.getAllUsers();
+      if (result.success) {
+        return result.data;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      ErrorHandler.logError(error, { context: 'get_all_users' });
+      return rejectWithValue(ErrorHandler.handleFirebaseError(error));
+    }
+  }
+);
+
 export const searchUsers = createAsyncThunk(
   'user/searchUsers',
   async ({ searchTerm, userType }, { rejectWithValue }) => {

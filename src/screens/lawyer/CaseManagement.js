@@ -44,6 +44,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { createCase,updateCase, deleteCase, getUserCases, addSubtask } from '../../store/caseSlice';
+import {getAllUsers} from '../../store/userSlice';
 const { width, height } = Dimensions.get('window');
 
 // Enhanced color palette
@@ -133,8 +134,10 @@ export default function CaseManagement({ navigation }) {
     const fetchCases = async () => {
     try {
       const cases = await dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap();
-      console.log('Fetched cases:', cases);
+      const users = await dispatch(getAllUsers()).unwrap();
       setCases(cases);
+      setUsers(users);
+      console.log('Fetched users:', users);
     } catch (error) {
       console.error('Failed to fetch cases:', error);
     }
@@ -183,7 +186,7 @@ export default function CaseManagement({ navigation }) {
   const [editForm, setEditForm] = useState(null);
   const [teamInput, setTeamInput] = useState('');
   const [cases, setCases] = useState([]);
-
+  const [users, setUsers] = useState([]);
   // Mock data for demonstration
   useEffect(() => {
     if (user?.uid && user?.role) {
@@ -429,7 +432,7 @@ function handleSaveEdit(localForm) {
   // Animated values
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 100],
-    outputRange: [180, 120],
+    outputRange: [200, 120],
     extrapolate: 'clamp'
   });
 
@@ -1163,6 +1166,18 @@ function handleSaveEdit(localForm) {
     const [showStatusSelector, setShowStatusSelector] = useState(false);
     const [showPrioritySelector, setShowPrioritySelector] = useState(false);
     const [showPicker, setShowPicker] = useState(false);
+    const [filteredUsers, setFilteredUsers] = useState([]);
+
+    const handleInputChange = (text) => {
+      setLocalTeamInput(text);
+
+      // Show only matching names
+      const matches = users.filter(user =>
+        user.displayName?.toLowerCase().includes(text.toLowerCase())
+      );
+      setFilteredUsers(matches);
+    };
+
 
     const handleChange = (event, selectedDate) => {
       setShowPicker(false); // hide after selecting or canceling
@@ -1198,30 +1213,40 @@ function handleSaveEdit(localForm) {
     };
 
     // Fixed team member handlers
-    const addLocalTeamMember = () => {
-      if (!localTeamInput.trim()) {
-        Alert.alert('Error', 'Please enter a team member name');
-        return;
-      }
+      const addLocalTeamMember = () => {
+        const name = localTeamInput.trim();
 
-      // Ensure localForm.team is always an array
-      const currentTeam = Array.isArray(localForm.team) ? localForm.team : [];
-      
-      // Check for duplicates
-      if (currentTeam.includes(localTeamInput.trim())) {
-        Alert.alert('Error', 'This team member is already added');
-        return;
-      }
+        if (!name) {
+          Alert.alert('Error', 'Please enter a team member name');
+          return;
+        }
 
-      // Update the form with the new team member
-      setLocalForm(prev => ({
-        ...prev,
-        team: [...currentTeam, localTeamInput.trim()]
-      }));
-      
-      // Clear the input
-      setLocalTeamInput('');
-    };
+        // Ensure the name exists in Firestore's user list
+        const validUser = users.find(u => u.displayName === name);
+        if (!validUser) {
+          Alert.alert('Error', 'Please select a valid user from the list');
+          return;
+        }
+
+        // Ensure localForm.team is always an array
+        const currentTeam = Array.isArray(localForm.team) ? localForm.team : [];
+
+        // Check for duplicates
+        if (currentTeam.includes(name)) {
+          Alert.alert('Error', 'This team member is already added');
+          return;
+        }
+
+        // Update the form with the new team member
+        setLocalForm(prev => ({
+          ...prev,
+          team: [...currentTeam, name]
+        }));
+
+        // Clear the input
+        setLocalTeamInput('');
+      };
+
 
     const removeLocalTeamMember = (memberToRemove) => {
       // Ensure localForm.team is always an array
@@ -1508,45 +1533,78 @@ function handleSaveEdit(localForm) {
 
                 {/* Team Section */}
                 <Surface style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Team Members</Text>
-                  
-                  <View style={styles.teamInputContainer}>
-                    <TextInput
-                      style={[styles.textInput, { flex: 1, marginRight: 12 }]}
-                      value={localTeamInput}
-                      onChangeText={setLocalTeamInput}
-                      placeholder="Add team member (e.g., Adv. Sharma)"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                    <TouchableOpacity 
-                      style={styles.addButton}
-                      onPress={addLocalTeamMember}
-                    >
-                      <MaterialCommunityIcons name="plus" size={20} color="white" />
-                    </TouchableOpacity>
-                  </View>
+                        <Text style={styles.formSectionTitle}>Team Members</Text>
 
-                  {localForm.team && localForm.team.length > 0 && (
-                    <View style={styles.teamChipsContainer}>
-                      {localForm.team.map((member, index) => (
-                        <View key={index} style={styles.teamChip}>
-                          <Avatar.Text 
-                            size={24} 
-                            label={member.split(' ')[1]?.charAt(0) || member.charAt(0)} 
-                            style={styles.teamChipAvatar}
-                          />
-                          <Text style={styles.teamChipText}>{member}</Text>
-                          <TouchableOpacity
-                            style={styles.teamChipRemove}
-                            onPress={() => removeLocalTeamMember(member)}
-                          >
-                            <MaterialCommunityIcons name="close" size={16} color={colors.error} />
+                        <View style={styles.teamInputContainer}>
+                          <View style={{ flex: 1, marginRight: 12 }}>
+                            <TextInput
+                              style={styles.textInput}
+                              value={localTeamInput}
+                              onChangeText={handleInputChange}
+                              placeholder="Add team member (e.g., Adv. Sharma)"
+                              placeholderTextColor={colors.textTertiary}
+                            />
+
+                            {/* Suggestions dropdown */}
+                            {localTeamInput.length >= 2 && filteredUsers.length > 0 && (
+                              <View
+                                style={{
+                                  backgroundColor: 'white',
+                                  borderRadius: 6,
+                                  marginTop: 4,
+                                  elevation: 3,
+                                  maxHeight: 150,
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                {filteredUsers.map((user, index) => (
+                                  <TouchableOpacity
+                                    key={index}
+                                    onPress={() => {
+                                      setLocalTeamInput(user.displayName);
+                                      setFilteredUsers([]);
+                                    }}
+                                    style={{
+                                      paddingVertical: 8,
+                                      paddingHorizontal: 12,
+                                      borderBottomWidth: index !== filteredUsers.length - 1 ? 1 : 0,
+                                      borderBottomColor: '#eee'
+                                    }}
+                                  >
+                                    <Text style={{ color: colors.textPrimary }}>{user.displayName}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+
+                          <TouchableOpacity style={styles.addButton} onPress={addLocalTeamMember}>
+                            <MaterialCommunityIcons name="plus" size={20} color="white" />
                           </TouchableOpacity>
                         </View>
-                      ))}
-                    </View>
-                  )}
+
+                        {localForm.team && localForm.team.length > 0 && (
+                          <View style={styles.teamChipsContainer}>
+                            {localForm.team.map((member, index) => (
+                              <View key={index} style={styles.teamChip}>
+                                <Avatar.Text
+                                  size={24}
+                                  label={member.split(' ')[1]?.charAt(0) || member.charAt(0)}
+                                  style={styles.teamChipAvatar}
+                                />
+                                <Text style={styles.teamChipText}>{member}</Text>
+                                <TouchableOpacity
+                                  style={styles.teamChipRemove}
+                                  onPress={() => removeLocalTeamMember(member)}
+                                >
+                                  <MaterialCommunityIcons name="close" size={16} color={colors.error} />
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+                          </View>
+                        )}
                 </Surface>
+
 
                 <View style={{ height: 100 }} />
               </View>
@@ -1867,8 +1925,7 @@ function handleSaveEdit(localForm) {
   }
 
   // Add Subtask Modal
-  function AddSubtaskModal() {
-     // Subtask form state
+    function AddSubtaskModal() {
       const [subtaskForm, setSubtaskForm] = useState({
         title: '',
         description: '',
@@ -1877,78 +1934,153 @@ function handleSaveEdit(localForm) {
         priority: 'medium',
         category: 'research'
       });
-     const [showPicker, setShowPicker] = useState(false);
+      
+      const [showPicker, setShowPicker] = useState(false);
+      const [filteredUsers, setFilteredUsers] = useState([]);
 
-    const handleChange = (event, selectedDate) => {
-      setShowPicker(false); // hide after selecting or canceling
-      if (selectedDate) {
-        setSubtaskForm(prev => ({
-          ...prev,
-          dueDate: selectedDate.toISOString().split('T')[0] // store as YYYY-MM-DD
-        }));
-      }
-    };
+      // Handle Assign To input change
+      const handleAssignToChange = (text) => {
+        setSubtaskForm(prev => ({ ...prev, assignedTo: text }));
 
-    return (
-      <Modal visible={showAddSubtaskModal} animationType="slide" statusBarTranslucent>
-        <View style={styles.modalOverlay}>
-          <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
-             <View style={styles.addModalHeader}>
-                  <Text style={styles.addModalTitle}>Create Subtask</Text>
-                  <TouchableOpacity onPress={() => setShowAddSubtaskModal(false)}>
-                    <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-                  </TouchableOpacity>
+        if (text.length >= 2) {
+          const matches = users.filter(user =>
+            user.displayName?.toLowerCase().includes(text.toLowerCase())
+          );
+          setFilteredUsers(matches);
+        } else {
+          setFilteredUsers([]);
+        }
+      };
+
+      // Ensure assignedTo is valid before creating subtask
+      const validateAndCreateSubtask = () => {
+        const name = subtaskForm.assignedTo.trim();
+        if (!name) {
+          Alert.alert('Error', 'Please assign this subtask to a team member.');
+          return;
+        }
+
+        const validUser = users.find(u => u.displayName === name);
+        if (!validUser) {
+          Alert.alert('Error', 'Please select a valid user from the list.');
+          return;
+        }
+
+        handleCreateSubtask(subtaskForm, setSubtaskForm);
+      };
+
+      const handleChange = (event, selectedDate) => {
+        setShowPicker(false);
+        if (selectedDate) {
+          setSubtaskForm(prev => ({
+            ...prev,
+            dueDate: selectedDate.toISOString().split('T')[0]
+          }));
+        }
+      };
+
+      return (
+        <Modal visible={showAddSubtaskModal} animationType="slide" statusBarTranslucent>
+          <View style={styles.modalOverlay}>
+            <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
+              <View style={styles.addModalHeader}>
+                <Text style={styles.addModalTitle}>Create Subtask</Text>
+                <TouchableOpacity onPress={() => setShowAddSubtaskModal(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.addModalScroll}>
+                {/* Task Title */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Task Title *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={subtaskForm.title}
+                    onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, title: text }))}
+                    placeholder="Enter task title"
+                    placeholderTextColor={colors.textTertiary}
+                  />
                 </View>
 
-                <ScrollView style={styles.addModalScroll}>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Task Title *</Text>
-                    <TextInput
-                      style={styles.formInput}
-                      value={subtaskForm.title}
-                      onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, title: text }))}
-                      placeholder="Enter task title"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
+                {/* Description */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Description</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.formTextArea]}
+                    value={subtaskForm.description}
+                    onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, description: text }))}
+                    placeholder="Describe the task in detail"
+                    placeholderTextColor={colors.textTertiary}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
 
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Description</Text>
-                    <TextInput
-                      style={[styles.formInput, styles.formTextArea]}
-                      value={subtaskForm.description}
-                      onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, description: text }))}
-                      placeholder="Describe the task in detail"
-                      placeholderTextColor={colors.textTertiary}
-                      multiline
-                      numberOfLines={3}
-                    />
-                  </View>
-
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Assign To</Text>
+                {/* Assign To */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Assign To</Text>
+                  <View style={{ position: 'relative' }}>
                     <TextInput
                       style={styles.formInput}
                       value={subtaskForm.assignedTo}
-                      onChangeText={(text) => setSubtaskForm(prev => ({ ...prev, assignedTo: text }))}
+                      onChangeText={handleAssignToChange}
                       placeholder="Team member name"
                       placeholderTextColor={colors.textTertiary}
                     />
-                  </View>
 
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
-                      <Text style={styles.formLabel}>Due Date</Text>
-                      <TouchableOpacity onPress={() => setShowPicker(true)}>
-                        <TextInput
-                          style={styles.textInput}
-                          value={subtaskForm.dueDate}
-                          editable={false}
-                          placeholder="YYYY-MM-DD"
-                          placeholderTextColor={colors.textTertiary}
-                        />
-                      </TouchableOpacity>
-                     {showPicker && (
+                    {filteredUsers.length > 0 && (
+                      <View
+                        style={{
+                          backgroundColor: 'white',
+                          borderRadius: 6,
+                          marginTop: 4,
+                          elevation: 3,
+                          maxHeight: 150,
+                          overflow: 'hidden',
+                          position: 'absolute',
+                          top: '100%',
+                          left: 0,
+                          right: 0,
+                          zIndex: 10
+                        }}
+                      >
+                        {filteredUsers.map((user, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            onPress={() => {
+                              setSubtaskForm(prev => ({ ...prev, assignedTo: user.displayName }));
+                              setFilteredUsers([]);
+                            }}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              borderBottomWidth: index !== filteredUsers.length - 1 ? 1 : 0,
+                              borderBottomColor: '#eee'
+                            }}
+                          >
+                            <Text style={{ color: colors.textPrimary }}>{user.displayName}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                </View>
+
+                {/* Due Date */}
+                <View style={styles.formRow}>
+                  <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
+                    <Text style={styles.formLabel}>Due Date</Text>
+                    <TouchableOpacity onPress={() => setShowPicker(true)}>
+                      <TextInput
+                        style={styles.textInput}
+                        value={subtaskForm.dueDate}
+                        editable={false}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={colors.textTertiary}
+                      />
+                    </TouchableOpacity>
+                    {showPicker && (
                       <DateTimePicker
                         value={subtaskForm.dueDate ? new Date(subtaskForm.dueDate) : new Date()}
                         mode="date"
@@ -1956,78 +2088,81 @@ function handleSaveEdit(localForm) {
                         onChange={handleChange}
                       />
                     )}
-                    </View>
-
-                    <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
-                      <Text style={styles.formLabel}>Priority</Text>
-                      <View style={styles.priorityButtons}>
-                        {['low', 'medium', 'high', 'critical'].map((priority) => (
-                          <TouchableOpacity
-                            key={priority}
-                            style={[
-                              styles.priorityButton,
-                              subtaskForm.priority === priority && styles.priorityButtonSelected,
-                              { backgroundColor: getPriorityColor(priority) + (subtaskForm.priority === priority ? 'FF' : '15') }
-                            ]}
-                            onPress={() => setSubtaskForm(prev => ({ ...prev, priority }))}
-                          >
-                            <Text style={[
-                              styles.priorityButtonText,
-                              { color: subtaskForm.priority === priority ? 'white' : getPriorityColor(priority) }
-                            ]}>
-                              {priority.charAt(0).toUpperCase()}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </View>
                   </View>
 
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Category</Text>
-                    <View style={styles.categoryChips}>
-                      {['research', 'drafting', 'filing', 'review', 'meeting', 'other'].map((category) => (
+                  {/* Priority */}
+                  <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
+                    <Text style={styles.formLabel}>Priority</Text>
+                    <View style={styles.priorityButtons}>
+                      {['low', 'medium', 'high', 'critical'].map((priority) => (
                         <TouchableOpacity
-                          key={category}
-                          onPress={() => setSubtaskForm(prev => ({ ...prev, category }))}
+                          key={priority}
+                          style={[
+                            styles.priorityButton,
+                            subtaskForm.priority === priority && styles.priorityButtonSelected,
+                            { backgroundColor: getPriorityColor(priority) + (subtaskForm.priority === priority ? 'FF' : '15') }
+                          ]}
+                          onPress={() => setSubtaskForm(prev => ({ ...prev, priority }))}
                         >
-                          <Chip
-                            selected={subtaskForm.category === category}
+                          <Text
                             style={[
-                              styles.categoryChip,
-                              subtaskForm.category === category && styles.categoryChipSelected
+                              styles.priorityButtonText,
+                              { color: subtaskForm.priority === priority ? 'white' : getPriorityColor(priority) }
                             ]}
                           >
-                            {category.charAt(0).toUpperCase() + category.slice(1)}
-                          </Chip>
+                            {priority.charAt(0).toUpperCase()}
+                          </Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   </View>
-                </ScrollView>
+                </View>
 
-                <View style={styles.addModalActions}>
-                  <TouchableOpacity 
-                    style={styles.addModalCancel}
-                    onPress={() => setShowAddSubtaskModal(false)}
-                  >
-                    <Text style={styles.addModalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
+                {/* Category */}
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Category</Text>
+                  <View style={styles.categoryChips}>
+                    {['research', 'drafting', 'filing', 'review', 'meeting', 'other'].map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        onPress={() => setSubtaskForm(prev => ({ ...prev, category }))}
+                      >
+                        <Chip
+                          selected={subtaskForm.category === category}
+                          style={[
+                            styles.categoryChip,
+                            subtaskForm.category === category && styles.categoryChipSelected
+                          ]}
+                        >
+                          {category.charAt(0).toUpperCase() + category.slice(1)}
+                        </Chip>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </ScrollView>
 
-                  <TouchableOpacity 
-                    style={styles.addModalSave}
-                    onPress={() =>handleCreateSubtask(subtaskForm, setSubtaskForm)}
-                  >
-                    <LinearGradient colors={colors.gradient.primary} style={styles.addModalSaveGradient}>
-                      <Text style={styles.addModalSaveText}>Create Task</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-      </Modal>
-    );
-  }
+              {/* Actions */}
+              <View style={styles.addModalActions}>
+                <TouchableOpacity
+                  style={styles.addModalCancel}
+                  onPress={() => setShowAddSubtaskModal(false)}
+                >
+                  <Text style={styles.addModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.addModalSave} onPress={validateAndCreateSubtask}>
+                  <LinearGradient colors={colors.gradient.primary} style={styles.addModalSaveGradient}>
+                    <Text style={styles.addModalSaveText}>Create Task</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </LinearGradient>
+          </View>
+        </Modal>
+      );
+    }
+
 
   // // Add Timeline Event Modal
   // function AddTimelineModal() {

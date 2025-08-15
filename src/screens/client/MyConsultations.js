@@ -297,7 +297,7 @@ export default function MyConsultations({ navigation }) {
 
   const headerHeight = scrollY.interpolate({
     inputRange: [0, 100],
-    outputRange: [180, 120],
+    outputRange: [200, 120],
     extrapolate: 'clamp'
   });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect,useMemo } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -24,10 +24,11 @@ import {
 } from 'react-native-paper';
 import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { SCREEN_NAMES } from '../../utils/constants';
+import { getUserCases } from '../../store/caseSlice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -62,12 +63,57 @@ const colors = {
 
 export default function LawyerDashboard() {
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
   const [scrollY] = useState(new Animated.Value(0));
   const navigation = useNavigation();
   const [showAddCaseModal, setShowAddCaseModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [goalPeriod, setGoalPeriod] = useState('monthly');
-  console.log(user)
+  const [cases, setCases] = useState([]);
+
+
+      const getActiveCaseValue = (cases) => {
+        return cases
+          .filter(c => c.status === "active")
+          .reduce((total, c) => {
+            const caseValue = parseFloat(
+              String(c.value || "0").replace(/[₹,]/g, "") // remove ₹ and commas
+            );
+            return total + (isNaN(caseValue) ? 0 : caseValue);
+          }, 0);
+      };
+
+      // 2. Unique active clients count
+      const getActiveClients = (cases) => {
+        const activeClients = new Set(
+          cases
+            .filter(c => c.status === "active" && c.client)
+            .map(c => c.client.trim())
+        );
+        return activeClients.size;
+      };
+
+      const totalActiveValue = useMemo(() => getActiveCaseValue(cases), [cases]);
+      const activeClientsCount = useMemo(() => getActiveClients(cases), [cases]);
+
+
+
+  useEffect(() => {
+    if (user?.uid && user?.role) {
+      fetchCases();
+    }
+  }, [user]);
+  
+  const fetchCases = async () => {
+    try {
+      const cases = await dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap();
+      setCases(cases);
+      console.log('Fetched cases:', cases);
+    } catch (error) {
+      console.error('Failed to fetch cases:', error);
+    }
+  };
+
   const handleAddCase = (caseData) => {
     // Handle the new case data
     console.log('New case created:', caseData);
@@ -77,7 +123,7 @@ export default function LawyerDashboard() {
   const stats = [
     { 
       label: 'Active Cases', 
-      value: '12', 
+      value: cases.length.toString(), 
       change: '+2',
       trend: 'up',
       icon: 'briefcase-variant', 
@@ -120,68 +166,105 @@ export default function LawyerDashboard() {
     },
   ];
 
-  const allTasks = [
-    {
-      id: 1,
-      title: 'Supreme Court Filing',
-      client: 'Reliance Industries Ltd.',
-      deadline: '2 hours',
-      priority: 'critical',
-      category: 'Corporate Law',
-      progress: 85,
-      urgency: 'high',
-      value: '₹15L',
-      type: 'filing'
-    },
-    {
-      id: 2,
-      title: 'M&A Due Diligence Review',
-      client: 'TechCorp Acquisition',
-      deadline: '4:30 PM Today',
-      priority: 'high',
-      category: 'Corporate Law',
-      progress: 60,
-      urgency: 'medium',
-      value: '₹8L',
-      type: 'review'
-    },
-    {
-      id: 3,
-      title: 'IPO Compliance Audit',
-      client: 'StartupX Ltd.',
-      deadline: 'Tomorrow 9 AM',
-      priority: 'medium',
-      category: 'Securities Law',
-      progress: 30,
-      urgency: 'low',
-      value: '₹5L',
-      type: 'audit'
-    },
-    {
-      id: 4,
-      title: 'Contract Negotiation',
-      client: 'Global Tech Inc.',
-      deadline: '3 days',
-      priority: 'high',
-      category: 'Contract Law',
-      progress: 75,
-      urgency: 'high',
-      value: '₹12L',
-      type: 'negotiation'
-    },
-    {
-      id: 5,
-      title: 'Patent Application',
-      client: 'Innovation Labs',
-      deadline: '1 week',
-      priority: 'low',
-      category: 'IP Law',
-      progress: 20,
-      urgency: 'low',
-      value: '₹3L',
-      type: 'application'
-    }
-  ];
+  // const allTasks = [
+  //   {
+  //     id: 1,
+  //     title: 'Supreme Court Filing',
+  //     client: 'Reliance Industries Ltd.',
+  //     deadline: '2 hours',
+  //     priority: 'critical',
+  //     category: 'Corporate Law',
+  //     progress: 85,
+  //     urgency: 'high',
+  //     value: '₹15L',
+  //     type: 'filing'
+  //   },
+  //   {
+  //     id: 2,
+  //     title: 'M&A Due Diligence Review',
+  //     client: 'TechCorp Acquisition',
+  //     deadline: '4:30 PM Today',
+  //     priority: 'high',
+  //     category: 'Corporate Law',
+  //     progress: 60,
+  //     urgency: 'medium',
+  //     value: '₹8L',
+  //     type: 'review'
+  //   },
+  //   {
+  //     id: 3,
+  //     title: 'IPO Compliance Audit',
+  //     client: 'StartupX Ltd.',
+  //     deadline: 'Tomorrow 9 AM',
+  //     priority: 'medium',
+  //     category: 'Securities Law',
+  //     progress: 30,
+  //     urgency: 'low',
+  //     value: '₹5L',
+  //     type: 'audit'
+  //   },
+  //   {
+  //     id: 4,
+  //     title: 'Contract Negotiation',
+  //     client: 'Global Tech Inc.',
+  //     deadline: '3 days',
+  //     priority: 'high',
+  //     category: 'Contract Law',
+  //     progress: 75,
+  //     urgency: 'high',
+  //     value: '₹12L',
+  //     type: 'negotiation'
+  //   },
+  //   {
+  //     id: 5,
+  //     title: 'Patent Application',
+  //     client: 'Innovation Labs',
+  //     deadline: '1 week',
+  //     priority: 'low',
+  //     category: 'IP Law',
+  //     progress: 20,
+  //     urgency: 'low',
+  //     value: '₹3L',
+  //     type: 'application'
+  //   }
+  // ];
+
+
+    const allTasks = cases.flatMap(caseItem => {
+      if (Array.isArray(caseItem.subtasks)) {
+        return caseItem.subtasks
+          .filter(subtask => subtask.status !== "completed")
+          .map(subtask => {
+            // Safe deadline text
+            let deadlineText = '';
+            if (subtask.dueDate) {
+              const due = new Date(subtask.dueDate);
+              const now = new Date();
+              const diffMs = due - now;
+              const diffHrs = Math.ceil(diffMs / (1000 * 60 * 60));
+              deadlineText = diffHrs > 0 ? `${diffHrs} hours` : "Due now";
+            }
+            return {
+              id: subtask.id,
+              title: subtask.title,
+              client: caseItem.client, // from main case
+              priority: subtask.priority,
+              category: subtask.category,
+              progress: subtask.progress || 0,
+              urgency: subtask.priority,
+              value: caseItem.value,
+              // type: subtask.type || "subtask",
+              deadline: deadlineText || "No deadline",
+              assignedTo: subtask.assignedTo || "",
+              caseTitle: caseItem.title,
+              caseId: caseItem.id
+            };
+          });
+      }
+      return [];
+    });
+
+
 
   const filterButtons = [
     { key: 'all', label: 'All Tasks', icon: 'view-grid', count: allTasks.length },
@@ -205,11 +288,15 @@ export default function LawyerDashboard() {
       case 'high':
         return allTasks.filter(task => task.priority === 'high');
       case 'today':
-        return allTasks.filter(task => task.deadline.includes('Today') || task.deadline.includes('hours'));
+        return allTasks.filter(task => 
+          (task.deadline || '').includes('Today') || 
+          (task.deadline || '').includes('hours')
+        );
       default:
         return allTasks;
     }
   };
+
 
   const goalPeriods = [
     { key: 'weekly', label: 'Week', icon: 'calendar-week' },
@@ -380,7 +467,7 @@ export default function LawyerDashboard() {
                       <MaterialCommunityIcons name="clipboard-check" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>3</Text>
+                  <Text style={styles.summaryValue}>{allTasks.length}</Text>
                   <Text style={styles.summaryLabel}>Priority Tasks</Text>
                 </View>
                 
@@ -395,7 +482,7 @@ export default function LawyerDashboard() {
                       <MaterialCommunityIcons name="currency-inr" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>₹28L</Text>
+                  <Text style={styles.summaryValue}>{totalActiveValue}</Text>
                   <Text style={styles.summaryLabel}>Active Value</Text>
                 </View>
                 
@@ -410,7 +497,7 @@ export default function LawyerDashboard() {
                       <MaterialCommunityIcons name="account-group" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>47</Text>
+                  <Text style={styles.summaryValue}>{activeClientsCount}</Text>
                   <Text style={styles.summaryLabel}>Active Clients</Text>
                 </View>
               </View>
