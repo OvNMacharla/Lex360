@@ -67,7 +67,7 @@ export default function LawyerDashboard() {
   const [showAddCaseModal, setShowAddCaseModal] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [goalPeriod, setGoalPeriod] = useState('monthly');
-
+  console.log(user)
   const handleAddCase = (caseData) => {
     // Handle the new case data
     console.log('New case created:', caseData);
@@ -189,6 +189,14 @@ export default function LawyerDashboard() {
     { key: 'high', label: 'High Priority', icon: 'flag', count: allTasks.filter(t => t.priority === 'high').length },
     { key: 'today', label: 'Due Today', icon: 'clock-alert', count: allTasks.filter(t => t.deadline.includes('Today') || t.deadline.includes('hours')).length },
   ];
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+
+    if (hour < 12) return "Good Morning ☀️";
+    if (hour < 18) return "Good Afternoon 🌤️";
+    return "Good Evening 🌙";
+  };
 
   const getFilteredTasks = () => {
     switch (activeFilter) {
@@ -314,7 +322,7 @@ export default function LawyerDashboard() {
                 >
                   <Avatar.Text 
                     size={56} 
-                    label={user?.name?.charAt(0) || 'A'} 
+                    label={user?.displayName?.charAt(0) || 'A'} 
                     style={styles.avatar}
                     labelStyle={styles.avatarLabel}
                   />
@@ -323,8 +331,8 @@ export default function LawyerDashboard() {
               </View>
               
               <View style={styles.userDetails}>
-                <Text style={styles.welcomeText}>Good Morning ☀️</Text>
-                <Text style={styles.userName}>Adv. {user?.name || 'Arjun Sharma'}</Text>
+                <Text style={styles.welcomeText}>{getGreeting()}</Text>
+                <Text style={styles.userName}>Adv. {user?.displayName}</Text>
                 <View style={styles.expertiseBadge}>
                   <MaterialCommunityIcons name="star" size={12} color={colors.secondary} />
                   <Text style={styles.expertiseText}>Senior Partner</Text>
