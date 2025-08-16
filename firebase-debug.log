@@ -1,154 +1,34 @@
-[debug] [2025-08-13T11:07:16.769Z] ----------------------------------------------------------------------
-[debug] [2025-08-13T11:07:16.772Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\sitin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
-[debug] [2025-08-13T11:07:16.773Z] CLI Version:   14.12.0
-[debug] [2025-08-13T11:07:16.773Z] Platform:      win32
-[debug] [2025-08-13T11:07:16.773Z] Node Version:  v22.17.0
-[debug] [2025-08-13T11:07:16.773Z] Time:          Wed Aug 13 2025 16:37:16 GMT+0530 (India Standard Time)
-[debug] [2025-08-13T11:07:16.773Z] ----------------------------------------------------------------------
+[debug] [2025-08-15T17:36:42.477Z] ----------------------------------------------------------------------
+[debug] [2025-08-15T17:36:42.489Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\sitin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2025-08-15T17:36:42.490Z] CLI Version:   14.12.0
+[debug] [2025-08-15T17:36:42.490Z] Platform:      win32
+[debug] [2025-08-15T17:36:42.490Z] Node Version:  v22.17.0
+[debug] [2025-08-15T17:36:42.490Z] Time:          Fri Aug 15 2025 23:06:42 GMT+0530 (India Standard Time)
+[debug] [2025-08-15T17:36:42.490Z] ----------------------------------------------------------------------
 [debug] 
-[debug] [2025-08-13T11:07:17.177Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-08-13T11:07:17.178Z] > authorizing via signed-in user (mnagarjuna.dev@gmail.com)
-[debug] [2025-08-13T11:07:17.411Z] java version "19.0.2" 2023-01-17
-
-[debug] [2025-08-13T11:07:17.412Z] Java(TM) SE Runtime Environment (build 19.0.2+7-44)
-Java HotSpot(TM) 64-Bit Server VM (build 19.0.2+7-44, mixed mode, sharing)
-
-[debug] [2025-08-13T11:07:17.474Z] Parsed Java major version: 19
-[info] i  emulators: Starting emulators: auth, firestore, storage {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore, storage"}}
-[debug] [2025-08-13T11:07:17.499Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2025-08-13T11:07:17.500Z] assigned listening specs for emulators {"user":{"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[debug] [2025-08-13T11:07:17.515Z] [hub] writing locator at C:\Users\sitin\AppData\Local\Temp\hub-lex-360-42eef.json
-[debug] [2025-08-13T11:07:17.538Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
-[debug] [2025-08-13T11:07:17.538Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
-[debug] [2025-08-13T11:07:17.538Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\sitin\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.19.8.jar","--host","127.0.0.1","--port",8085,"--websocket_port",9150,"--project_id","lex-360-42eef","--rules","C:\\Users\\sitin\\OneDrive\\Documents\\OVN\\Lex360\\lex360-app\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8085} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\sitin\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"127.0.0.1\",\"--port\",8085,\"--websocket_port\",9150,\"--project_id\",\"lex-360-42eef\",\"--rules\",\"C:\\\\Users\\\\sitin\\\\OneDrive\\\\Documents\\\\OVN\\\\Lex360\\\\lex360-app\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8085}"}}
-[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
-[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
-[debug] [2025-08-13T11:07:37.386Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
-[debug] [2025-08-13T11:07:39.479Z] Temp file directory for storage emulator: C:\Users\sitin\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\sitin\\AppData\\Local\\Temp/firebase/storage/blobs"}}
-[debug] [2025-08-13T11:07:39.508Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
-[info] 
-┌─────────────────────────────────────────────────────────────┐
-│ ✔  All emulators ready! It is now safe to connect your app. │
-│ i  View Emulator UI at http://127.0.0.1:4000/               │
-└─────────────────────────────────────────────────────────────┘
-
-┌────────────────┬────────────────┬─────────────────────────────────┐
-│ Emulator       │ Host:Port      │ View in Emulator UI             │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Authentication │ 127.0.0.1:9099 │ http://127.0.0.1:4000/auth      │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Firestore      │ 127.0.0.1:8085 │ http://127.0.0.1:4000/firestore │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Storage        │ 127.0.0.1:9199 │ http://127.0.0.1:4000/storage   │
-└────────────────┴────────────────┴─────────────────────────────────┘
-  Emulator Hub host: 127.0.0.1 port: 4400
-  Other reserved ports: 4500, 9150
-
-Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
- 
-[debug] [2025-08-13T11:11:41.431Z] Received signal SIGHUP 1
-[info]  
-[info] i  emulators: Received SIGHUP for the first time. Starting a clean shutdown. 
-[info] i  emulators: Please wait for a clean shutdown or send the SIGHUP signal again to stop right now. 
-[info] i  emulators: Shutting down emulators. {"metadata":{"emulator":{"name":"hub"},"message":"Shutting down emulators."}}
-[info] i  ui: Stopping Emulator UI {"metadata":{"emulator":{"name":"ui"},"message":"Stopping Emulator UI"}}
-[info] i  firestore: Stopping Firestore Emulator {"metadata":{"emulator":{"name":"firestore"},"message":"Stopping Firestore Emulator"}}
-[warn] !  Firestore Emulator has exited upon receiving signal: SIGINT 
-[info] i  auth: Stopping Authentication Emulator {"metadata":{"emulator":{"name":"auth"},"message":"Stopping Authentication Emulator"}}
-[info] i  storage: Stopping Storage Emulator {"metadata":{"emulator":{"name":"storage"},"message":"Stopping Storage Emulator"}}
-[debug] [2025-08-13T11:11:41.649Z] Stopping rules runtime. {"metadata":{"emulator":{"name":"storage"},"message":"Stopping rules runtime."}}
-[info] i  hub: Stopping emulator hub {"metadata":{"emulator":{"name":"hub"},"message":"Stopping emulator hub"}}
-[info] i  logging: Stopping Logging Emulator {"metadata":{"emulator":{"name":"logging"},"message":"Stopping Logging Emulator"}}
-[debug] [2025-08-13T11:18:47.188Z] ----------------------------------------------------------------------
-[debug] [2025-08-13T11:18:47.193Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\sitin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
-[debug] [2025-08-13T11:18:47.194Z] CLI Version:   14.12.0
-[debug] [2025-08-13T11:18:47.194Z] Platform:      win32
-[debug] [2025-08-13T11:18:47.194Z] Node Version:  v22.17.0
-[debug] [2025-08-13T11:18:47.196Z] Time:          Wed Aug 13 2025 16:48:47 GMT+0530 (India Standard Time)
-[debug] [2025-08-13T11:18:47.196Z] ----------------------------------------------------------------------
-[debug] 
-[debug] [2025-08-13T11:18:47.697Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-08-13T11:18:47.698Z] > authorizing via signed-in user (mnagarjuna.dev@gmail.com)
-[debug] [2025-08-13T11:18:47.957Z] java version "19.0.2" 2023-01-17
+[debug] [2025-08-15T17:36:42.493Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-08-15T17:36:42.924Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-08-15T17:36:42.924Z] > authorizing via signed-in user (mnagarjuna.dev@gmail.com)
+[debug] [2025-08-15T17:36:43.106Z] java version "19.0.2" 2023-01-17
 Java(TM) SE Runtime Environment (build 19.0.2+7-44)
 
-[debug] [2025-08-13T11:18:47.958Z] Java HotSpot(TM) 64-Bit Server VM (build 19.0.2+7-44, mixed mode, sharing)
+[debug] [2025-08-15T17:36:43.106Z] Java HotSpot(TM) 64-Bit Server VM (build 19.0.2+7-44, mixed mode, sharing)
 
-[debug] [2025-08-13T11:18:47.985Z] Parsed Java major version: 19
+[debug] [2025-08-15T17:36:43.137Z] Parsed Java major version: 19
 [info] i  emulators: Starting emulators: auth, firestore, storage {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore, storage"}}
-[debug] [2025-08-13T11:18:48.005Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2025-08-13T11:18:48.006Z] assigned listening specs for emulators {"user":{"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[debug] [2025-08-13T11:18:48.013Z] [hub] writing locator at C:\Users\sitin\AppData\Local\Temp\hub-lex-360-42eef.json
-[debug] [2025-08-13T11:18:48.034Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
-[debug] [2025-08-13T11:18:48.035Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
-[debug] [2025-08-13T11:18:48.035Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\sitin\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.19.8.jar","--host","127.0.0.1","--port",8085,"--websocket_port",9150,"--project_id","lex-360-42eef","--rules","C:\\Users\\sitin\\OneDrive\\Documents\\OVN\\Lex360\\lex360-app\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8085} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\sitin\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"127.0.0.1\",\"--port\",8085,\"--websocket_port\",9150,\"--project_id\",\"lex-360-42eef\",\"--rules\",\"C:\\\\Users\\\\sitin\\\\OneDrive\\\\Documents\\\\OVN\\\\Lex360\\\\lex360-app\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8085}"}}
+[debug] [2025-08-15T17:36:43.155Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-08-15T17:36:43.156Z] assigned listening specs for emulators {"user":{"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-08-15T17:36:43.164Z] [hub] writing locator at C:\Users\sitin\AppData\Local\Temp\hub-lex-360-42eef.json
+[debug] [2025-08-15T17:36:43.178Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2025-08-15T17:36:43.179Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2025-08-15T17:36:43.179Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\sitin\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.19.8.jar","--host","127.0.0.1","--port",8085,"--websocket_port",9150,"--project_id","lex-360-42eef","--rules","C:\\Users\\sitin\\OneDrive\\Documents\\OVN\\Lex360\\lex360-app\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8085} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\sitin\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"127.0.0.1\",\"--port\",8085,\"--websocket_port\",9150,\"--project_id\",\"lex-360-42eef\",\"--rules\",\"C:\\\\Users\\\\sitin\\\\OneDrive\\\\Documents\\\\OVN\\\\Lex360\\\\lex360-app\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8085}"}}
 [info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
+[debug] [2025-08-15T17:36:43.544Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-08-15T17:36:43.544Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
 [info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
-[debug] [2025-08-13T11:19:08.210Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
-[debug] [2025-08-13T11:19:10.390Z] Temp file directory for storage emulator: C:\Users\sitin\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\sitin\\AppData\\Local\\Temp/firebase/storage/blobs"}}
-[debug] [2025-08-13T11:19:10.429Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
-[info] 
-┌─────────────────────────────────────────────────────────────┐
-│ ✔  All emulators ready! It is now safe to connect your app. │
-│ i  View Emulator UI at http://127.0.0.1:4000/               │
-└─────────────────────────────────────────────────────────────┘
-
-┌────────────────┬────────────────┬─────────────────────────────────┐
-│ Emulator       │ Host:Port      │ View in Emulator UI             │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Authentication │ 127.0.0.1:9099 │ http://127.0.0.1:4000/auth      │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Firestore      │ 127.0.0.1:8085 │ http://127.0.0.1:4000/firestore │
-├────────────────┼────────────────┼─────────────────────────────────┤
-│ Storage        │ 127.0.0.1:9199 │ http://127.0.0.1:4000/storage   │
-└────────────────┴────────────────┴─────────────────────────────────┘
-  Emulator Hub host: 127.0.0.1 port: 4400
-  Other reserved ports: 4500, 9150
-
-Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
- 
-[debug] [2025-08-13T12:10:55.724Z] Checked if tokens are valid: false, expires at: 1755072666152
-[debug] [2025-08-13T12:10:55.957Z] Checked if tokens are valid: false, expires at: 1755072666152
-[debug] [2025-08-13T12:10:55.974Z] > refreshing access token with scopes: []
-[debug] [2025-08-13T12:10:56.014Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
-[debug] [2025-08-13T12:10:56.014Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-08-13T12:10:56.564Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
-[debug] [2025-08-13T12:10:56.565Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
-[debug] [2025-08-13T12:10:56.615Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/lex-360-42eef/adminSdkConfig [none]
-[debug] [2025-08-13T12:10:57.118Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/lex-360-42eef/adminSdkConfig 200
-[debug] [2025-08-13T12:10:57.118Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/lex-360-42eef/adminSdkConfig {"projectId":"lex-360-42eef","storageBucket":"lex-360-42eef.firebasestorage.app"}
-[debug] [2025-08-14T17:34:17.105Z] ----------------------------------------------------------------------
-[debug] [2025-08-14T17:34:17.111Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\sitin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
-[debug] [2025-08-14T17:34:17.111Z] CLI Version:   14.12.0
-[debug] [2025-08-14T17:34:17.112Z] Platform:      win32
-[debug] [2025-08-14T17:34:17.112Z] Node Version:  v22.17.0
-[debug] [2025-08-14T17:34:17.114Z] Time:          Thu Aug 14 2025 23:04:17 GMT+0530 (India Standard Time)
-[debug] [2025-08-14T17:34:17.114Z] ----------------------------------------------------------------------
-[debug] 
-[debug] [2025-08-14T17:34:17.119Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
-[debug] [2025-08-14T17:34:17.782Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
-[debug] [2025-08-14T17:34:17.782Z] > authorizing via signed-in user (mnagarjuna.dev@gmail.com)
-[debug] [2025-08-14T17:34:18.099Z] java version "19.0.2" 2023-01-17
-
-[debug] [2025-08-14T17:34:18.103Z] Java(TM) SE Runtime Environment (build 19.0.2+7-44)
-Java HotSpot(TM) 64-Bit Server VM (build 19.0.2+7-44, mixed mode, sharing)
-
-[debug] [2025-08-14T17:34:18.144Z] Parsed Java major version: 19
-[info] i  emulators: Starting emulators: auth, firestore, storage {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore, storage"}}
-[debug] [2025-08-14T17:34:18.185Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
-[debug] [2025-08-14T17:34:18.185Z] assigned listening specs for emulators {"user":{"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8085}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}]},"metadata":{"message":"assigned listening specs for emulators"}}
-[warn] !  emulators: It seems that you are running multiple instances of the emulator suite for project lex-360-42eef. This may result in unexpected behavior. 
-[debug] [2025-08-14T17:34:18.195Z] [hub] writing locator at C:\Users\sitin\AppData\Local\Temp\hub-lex-360-42eef.json
-[debug] [2025-08-14T17:34:18.212Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
-[debug] [2025-08-14T17:34:18.212Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
-[debug] [2025-08-14T17:34:18.213Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\sitin\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.19.8.jar","--host","127.0.0.1","--port",8085,"--websocket_port",9150,"--project_id","lex-360-42eef","--rules","C:\\Users\\sitin\\OneDrive\\Documents\\OVN\\Lex360\\lex360-app\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8085} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\sitin\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.19.8.jar\",\"--host\",\"127.0.0.1\",\"--port\",8085,\"--websocket_port\",9150,\"--project_id\",\"lex-360-42eef\",\"--rules\",\"C:\\\\Users\\\\sitin\\\\OneDrive\\\\Documents\\\\OVN\\\\Lex360\\\\lex360-app\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8085}"}}
-[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
-[debug] [2025-08-14T17:34:19.267Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
-[debug] [2025-08-14T17:34:19.267Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
-[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
-[debug] [2025-08-14T17:34:37.254Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
-[debug] [2025-08-14T17:34:38.824Z] Temp file directory for storage emulator: C:\Users\sitin\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\sitin\\AppData\\Local\\Temp/firebase/storage/blobs"}}
-[debug] [2025-08-14T17:34:38.846Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
+[debug] [2025-08-15T17:37:01.799Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2025-08-15T17:37:03.471Z] Temp file directory for storage emulator: C:\Users\sitin\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\sitin\\AppData\\Local\\Temp/firebase/storage/blobs"}}
+[debug] [2025-08-15T17:37:03.506Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase Data Connect VSCode extension, this is expected and not an issue.
 [info] 
 ┌─────────────────────────────────────────────────────────────┐
 │ ✔  All emulators ready! It is now safe to connect your app. │

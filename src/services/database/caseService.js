@@ -204,91 +204,92 @@ class CaseService {
   /**
    * Update case with patch data
    */
-async updateCase(caseId, patch) {
-  try {
-    // Validate inputs
-    if (!caseId) throw new Error('Case ID is required');
-    console.log('Patch data:', patch);
-    if (!patch || typeof patch !== 'object') throw new Error('Invalid patch data');
+  async updateCase(caseId, patch) {
+    try {
+      // Validate inputs
+      if (!caseId) throw new Error('Case ID is required');
+      console.log('Patch data:', patch);
+      if (!patch || typeof patch !== 'object') throw new Error('Invalid patch data');
 
-    const currentUser = auth.currentUser;
-    if (!currentUser) throw new Error('User not authenticated');
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('User not authenticated');
 
-    const caseRef = doc(db, 'cases', caseId);
-    const caseSnap = await getDoc(caseRef);
+      const caseRef = doc(db, 'cases', caseId);
+      const caseSnap = await getDoc(caseRef);
 
-    if (!caseSnap.exists()) {
-      throw new Error('Case not found');
-    }
+      if (!caseSnap.exists()) {
+        throw new Error('Case not found');
+      }
 
-    const caseData = caseSnap.data();
-    if (!caseData) {
-      throw new Error('Case data not found');
-    }
+      const caseData = caseSnap.data();
+      if (!caseData) {
+        throw new Error('Case data not found');
+      }
 
-    // Permission check
-    const hasPermission = currentUser.uid === caseData.lawyerId || 
-                         currentUser.uid === caseData.clientId;
-    
-    if (!hasPermission) {
-      throw new Error('You do not have permission to update this case');
-    }
-
-    const updatePayload = {};
-
-    // Process patch fields more carefully
-    for (const key in patch) {
-      if (patch[key] === undefined) continue; // Skip undefined values
+      // Permission check
+      const hasPermission = currentUser.uid === caseData.lawyerId || 
+                          currentUser.uid === caseData.clientId || 
+                          (Array.isArray(caseData.team) && caseData.team.includes(currentUser.uid));
       
-      // Handle specific array fields that should use arrayUnion
-      if (['timeline', 'documents'].includes(key) && Array.isArray(patch[key])) {
-        updatePayload[key] = arrayUnion(...patch[key]);
+      if (!hasPermission) {
+        throw new Error('You do not have permission to update this case');
       }
-      // Handle subtasks as regular array replacement (not arrayUnion)
-      else if (key === 'subtasks' && Array.isArray(patch[key])) {
-        updatePayload[key] = patch[key];
+
+      const updatePayload = {};
+
+      // Process patch fields more carefully
+      for (const key in patch) {
+        if (patch[key] === undefined) continue; // Skip undefined values
+        
+        // Handle specific array fields that should use arrayUnion
+        if (['timeline', 'documents'].includes(key) && Array.isArray(patch[key])) {
+          updatePayload[key] = arrayUnion(...patch[key]);
+        }
+        // Handle subtasks as regular array replacement (not arrayUnion)
+        else if (key === 'subtasks' && Array.isArray(patch[key])) {
+          updatePayload[key] = patch[key];
+        }
+        // Handle regular fields
+        else {
+          updatePayload[key] = patch[key];
+        }
       }
-      // Handle regular fields
-      else {
-        updatePayload[key] = patch[key];
+
+      // Always update the updatedAt timestamp
+      updatePayload.updatedAt = serverTimestamp();
+
+      console.log('Firestore update payload:', updatePayload);
+
+      await updateDoc(caseRef, updatePayload);
+
+      // Get updated case data
+      const updatedSnap = await getDoc(caseRef);
+      
+      if (!updatedSnap.exists()) {
+        throw new Error('Updated case not found');
       }
+
+      // Convert the updated data using our safe converter
+      const convertedData = convertCaseData(updatedSnap);
+      
+      if (!convertedData) {
+        throw new Error('Failed to convert updated case data');
+      }
+
+      console.log('Successfully updated case:', caseId);
+
+      return { 
+        success: true, 
+        data: convertedData
+      };
+    } catch (error) {
+      console.error('Error updating case:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to update case'
+      };
     }
-
-    // Always update the updatedAt timestamp
-    updatePayload.updatedAt = serverTimestamp();
-
-    console.log('Firestore update payload:', updatePayload);
-
-    await updateDoc(caseRef, updatePayload);
-
-    // Get updated case data
-    const updatedSnap = await getDoc(caseRef);
-    
-    if (!updatedSnap.exists()) {
-      throw new Error('Updated case not found');
-    }
-
-    // Convert the updated data using our safe converter
-    const convertedData = convertCaseData(updatedSnap);
-    
-    if (!convertedData) {
-      throw new Error('Failed to convert updated case data');
-    }
-
-    console.log('Successfully updated case:', caseId);
-
-    return { 
-      success: true, 
-      data: convertedData
-    };
-  } catch (error) {
-    console.error('Error updating case:', error);
-    return { 
-      success: false, 
-      error: error.message || 'Failed to update case'
-    };
   }
-}
 
   /**
    * Get cases for a user based on their role
@@ -304,53 +305,74 @@ async updateCase(caseId, patch) {
         throw new Error('Valid user role is required (lawyer or client)');
       }
 
-      let q;
-      const casesCollection = collection(db, 'cases');
+      const casesCollectionRef = collection(db, 'cases');
+      let casesMap = new Map();
 
       if (userRole === 'lawyer') {
-        q = query(
-          casesCollection,
+        // Query 1: cases where this user is the lawyer
+        const lawyerQuery = query(
+          casesCollectionRef,
           where('lawyerId', '==', userId),
           orderBy('updatedAt', 'desc')
         );
-      } else {
-        q = query(
-          casesCollection,
+
+        // Query 2: cases where this user is in the team array
+        const teamQuery = query(
+          casesCollectionRef,
+          where('team', 'array-contains', userId),
+          orderBy('updatedAt', 'desc')
+        );
+
+        // Run both queries in parallel
+        const [lawyerSnapshot, teamSnapshot] = await Promise.all([
+          getDocs(lawyerQuery),
+          getDocs(teamQuery)
+        ]);
+
+        // Merge lawyer cases
+        lawyerSnapshot.docs.forEach(doc => {
+          const caseData = convertCaseData(doc);
+          if (caseData) casesMap.set(caseData.id, caseData);
+        });
+
+        // Merge team cases
+        teamSnapshot.docs.forEach(doc => {
+          const caseData = convertCaseData(doc);
+          if (caseData) casesMap.set(caseData.id, caseData);
+        });
+
+      } else if (userRole === 'client') {
+        // Query for client cases
+        const clientQuery = query(
+          casesCollectionRef,
           where('clientId', '==', userId),
           orderBy('updatedAt', 'desc')
         );
+
+        const clientSnapshot = await getDocs(clientQuery);
+
+        clientSnapshot.docs.forEach(doc => {
+          const caseData = convertCaseData(doc);
+          if (caseData) casesMap.set(caseData.id, caseData);
+        });
       }
 
-      const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) {
-        return { 
-          success: true, 
-          data: [] 
-        };
-      }
-
-      const cases = [];
-      snapshot.docs.forEach(doc => {
-        const caseData = convertCaseData(doc);
-        if (caseData) {
-          cases.push(caseData);
-        }
-      });
-
+      // Return merged results
       return { 
         success: true, 
-        data: cases 
+        data: Array.from(casesMap.values()) 
       };
+
     } catch (error) {
       console.error('Error getting user cases:', error);
       return { 
         success: false, 
         error: error.message || 'Failed to get cases',
-        data: [] // Always return empty array on error
+        data: [] 
       };
     }
   }
+
 
   /**
    * Get specific case details

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
   View,
@@ -12,15 +12,9 @@ import {
   Modal,
   FlatList,
   Alert,
-  Keyboard,
-  Platform,
-  Text as RNText
+  Platform
 } from 'react-native';
 import {
-  Card,
-  Title,
-  Paragraph,
-  Button,
   Avatar,
   Chip,
   Text,
@@ -30,11 +24,8 @@ import {
   Divider,
   FAB,
   Snackbar,
-  TextInput as PaperInput,
   Menu,
-  IconButton,
   Switch,
-  Checkbox
 } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -42,9 +33,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useSelector, useDispatch } from 'react-redux';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
-import { createCase,updateCase, deleteCase, getUserCases, addSubtask } from '../../store/caseSlice';
-import {getAllUsers} from '../../store/userSlice';
+import { createCase, updateCase, deleteCase, getUserCases } from '../../store/caseSlice';
+import { getAllUsers } from '../../store/userSlice';
+
 const { width, height } = Dimensions.get('window');
 
 // Enhanced color palette
@@ -113,7 +104,8 @@ const timelineEventTypes = [
   { id: 'custom', label: 'Custom Event', icon: 'star', color: colors.secondary }
 ];
 
-function parseCurrencyToNumber(value) {
+// Memoized utility functions to prevent unnecessary re-renders
+const parseCurrencyToNumber = (value) => {
   if (!value) return 0;
   try {
     const digits = value.replace(/[^0-9]/g, '');
@@ -121,477 +113,363 @@ function parseCurrencyToNumber(value) {
   } catch (e) {
     return 0;
   }
-}
+};
 
+const getCaseTypeInfo = (type) => {
+  return caseTypes.find((t) => t.id === type) || caseTypes[0];
+};
 
+const getPriorityColor = (priority) => {
+  const priorityInfo = priorityOptions.find(p => p.id === priority);
+  return priorityInfo ? priorityInfo.color : colors.textSecondary;
+};
 
+const getCaseStatusInfo = (status) => {
+  return caseStatuses.find((s) => s.id === status) || caseStatuses[0];
+};
+
+const getTimelineEventInfo = (type) => {
+  return timelineEventTypes.find(t => t.id === type) || timelineEventTypes[timelineEventTypes.length - 1];
+};
 
 export default function CaseManagement({ navigation }) {
   const isDarkMode = useSelector((state) => state.theme?.isDarkMode || false);
-  const { user } = useSelector((state) => state.auth);
-  const dispatch = useDispatch();
-
-    const fetchCases = async () => {
-    try {
-      const cases = await dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap();
-      const users = await dispatch(getAllUsers()).unwrap();
-      setCases(cases);
-      setUsers(users);
-      console.log('Fetched users:', users);
-    } catch (error) {
-      console.error('Failed to fetch cases:', error);
-    }
-  };
+    const { user } = useSelector((state) => state.auth);
+    const dispatch = useDispatch();
   
-  // Base state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState([]);
-  const [sortBy, setSortBy] = useState('date');
-  const [viewMode, setViewMode] = useState('list');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [showAddCaseModal, setShowAddCaseModal] = useState(false);
-  const [showCaseDetailsModal, setShowCaseDetailsModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedCase, setSelectedCase] = useState(null);
-  const [snackbar, setSnackbar] = useState({ visible: false, text: '' });
-  const [lastDeleted, setLastDeleted] = useState(null);
-  const [menuVisibleFor, setMenuVisibleFor] = useState(null);
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Enhanced modals state
-  const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
-  const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
-  // const [showAddTimelineModal, setShowAddTimelineModal] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-
-  // Form states
-  const emptyForm = {
-    title: '',
-    client: '',
-    type: 'corporate',
-    status: 'active',
-    priority: 'medium',
-    value: '',
-    progress: 0,
-    nextHearing: '',
-    description: '',
-    documents: 0,
-    team: [],
-    subtasks: [],
-    attachments: [],
-    timeline: []
-  };
+    // Base state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedFilters, setSelectedFilters] = useState([]);
+    const [sortBy, setSortBy] = useState('date');
+    const [viewMode, setViewMode] = useState('list');
+    const [showFilterModal, setShowFilterModal] = useState(false);
+    const [showAddCaseModal, setShowAddCaseModal] = useState(false);
+    const [showCaseDetailsModal, setShowCaseDetailsModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [selectedCase, setSelectedCase] = useState(null);
+    const [snackbar, setSnackbar] = useState({ visible: false, text: '' });
+    const [menuVisibleFor, setMenuVisibleFor] = useState(null);
+    const scrollY = useRef(new Animated.Value(0)).current;
   
-  const [form, setForm] = useState(emptyForm);
-  const [editForm, setEditForm] = useState(null);
-  const [teamInput, setTeamInput] = useState('');
-  const [cases, setCases] = useState([]);
-  const [users, setUsers] = useState([]);
-  // Mock data for demonstration
-  useEffect(() => {
-    if (user?.uid && user?.role) {
-      fetchCases();
-    }
-  }, [user, dispatch]);
-
-  // Utility functions
-  function getCaseTypeInfo(type) {
-    return caseTypes.find((t) => t.id === type) || caseTypes[0];
-  }
-
-    function getCaseTypeInfo(type) {
-    return caseTypes.find((t) => t.id === type) || caseTypes[0];
-  }
-
-  function getCaseStatusInfo(status) {
-    return caseStatuses.find((s) => s.id === status) || caseStatuses[0];
-  }
-
-  function getPriorityColor(priority) {
-    const priorityInfo = priorityOptions.find(p => p.id === priority);
-    return priorityInfo ? priorityInfo.color : colors.textSecondary;
-
-      }
-
-  function handleBack() {
-    if (navigation && navigation.goBack) {
-      navigation.goBack();
-      return;
-    }
-    Alert.alert('Back', 'Back pressed (no navigation provided)');
-  }
-
-  function openMenuFor(caseItemId) {
-    setMenuVisibleFor(caseItemId);
-  }
-
-  function closeMenu() {
-    setMenuVisibleFor(null);
-  }
-
-  function handleViewDetails(caseItem) {
-    setSelectedCase(caseItem);
-    setShowCaseDetailsModal(true);
-    closeMenu();
-  }
-
-  function handleDelete(caseItem) {
-    closeMenu();
-
-    Alert.alert(
-      'Delete Case',
-      `Are you sure you want to delete "${caseItem.title}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            dispatch(deleteCase(caseItem.id)) // use the correct id
-              .unwrap()
-              .then(() => {
-                setSnackbar({ visible: true, text: 'Case deleted successfully' });
-                fetchCases(); // fetch updated cases after successful deletion
-              })
-              .catch((error) => {
-                Alert.alert('Error', error.message || error);
-              });
-          }
-        }
-      ]
-    );
-  }
-
-
-  function handleEdit(caseItem) {
-    setSelectedCase(caseItem);
-    setEditForm(caseItem);
-    setShowEditModal(true);
-    closeMenu();
-  }
-
-  function undoDelete() {
-    if (lastDeleted) {
-      setCases((prev) => [lastDeleted, ...prev]);
-      setLastDeleted(null);
-
-          setSnackbar({ visible: true, text: 'Case restored successfully' });
-    }
-  }
-
-  function resetForm() {
-    setForm(emptyForm);
-    setTeamInput('');
-  }
-
-  function addTeamMember(formSetter, memberName) {
-    if (!memberName || memberName.trim() === '') return;
-    formSetter((prev) => ({ ...prev, team: [...(prev.team || []), memberName.trim()] }));
-    setTeamInput('');
-  }
-
-  function removeTeamMember(formSetter, memberName) {
-    formSetter((prev) => ({
-      ...prev,
-      team: prev.team.filter((m) => m !== memberName)
-    }));
-  }
-
-  function handleAddCase(localForm) {
-    // if (!form.title.trim() || !form.client.trim()) {
-    //   Alert.alert('Validation Error', 'Please enter both case title and client name');
-    //   return;
-    // }
-
-
-    const newCase = {
-      ...localForm,
-      caseNumber: `CSE/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-      timeline: [{
-        id: 't1',
-        date: new Date().toISOString().split('T')[0],
-        text: 'Case created',
-        status: 'completed'
-      }],
+    // Enhanced modals state
+    const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
+    const [showAddSubtaskModal, setShowAddSubtaskModal] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+  
+    // Form states - Fixed to prevent re-renders
+    const emptyForm = useMemo(() => ({
+      title: '',
+      client: '',
+      type: 'corporate',
+      status: 'active',
+      priority: 'medium',
+      value: '',
+      progress: 0,
+      nextHearing: '',
+      description: '',
+      documents: 0,
+      team: [],
+      subtasks: [],
       attachments: [],
-      subtasks: []
-    };
-
-    dispatch(createCase(newCase))
-      .unwrap()
-      .then(() => {
+      timeline: []
+    }), []);
+    
+    const [form, setForm] = useState(emptyForm);
+    const [editForm, setEditForm] = useState(null);
+    const [teamInput, setTeamInput] = useState('');
+    const [cases, setCases] = useState([]);
+    const [users, setUsers] = useState([]);
+  
+    // Memoized fetch function to prevent re-renders
+    const fetchCases = useCallback(async () => {
+      if (!user?.uid || !user?.role) return;
+      
+      try {
+        const [casesResult, usersResult] = await Promise.all([
+          dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap(),
+          dispatch(getAllUsers()).unwrap()
+        ]);
+        
+        setCases(casesResult);
+        setUsers(usersResult);
+      } catch (error) {
+        console.error('Failed to fetch cases:', error);
+        Alert.alert('Error', 'Failed to fetch cases');
+      }
+    }, [dispatch, user?.uid, user?.role]);
+  
+    // Effect with proper dependencies
+    useEffect(() => {
+      fetchCases();
+    }, [fetchCases]);
+  
+    // Memoized handlers to prevent re-renders
+    const handleBack = useCallback(() => {
+      if (navigation && navigation.goBack) {
+        navigation.goBack();
+        return;
+      }
+      Alert.alert('Back', 'Back pressed (no navigation provided)');
+    }, [navigation]);
+  
+    const openMenuFor = useCallback((caseItemId) => {
+      setMenuVisibleFor(caseItemId);
+    }, []);
+  
+    const closeMenu = useCallback(() => {
+      setMenuVisibleFor(null);
+    }, []);
+  
+    const handleViewDetails = useCallback((caseItem) => {
+      setSelectedCase(caseItem);
+      setShowCaseDetailsModal(true);
+      closeMenu();
+    }, [closeMenu]);
+  
+    const handleDelete = useCallback((caseItem) => {
+      closeMenu();
+  
+      Alert.alert(
+        'Delete Case',
+        `Are you sure you want to delete "${caseItem.title}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await dispatch(deleteCase(caseItem.id)).unwrap();
+                setSnackbar({ visible: true, text: 'Case deleted successfully' });
+                await fetchCases();
+              } catch (error) {
+                Alert.alert('Error', error.message || error);
+              }
+            }
+          }
+        ]
+      );
+    }, [closeMenu, dispatch, fetchCases]);
+  
+    const handleEdit = useCallback((caseItem) => {
+      setSelectedCase(caseItem);
+      setEditForm(caseItem);
+      setShowEditModal(true);
+      closeMenu();
+    }, [closeMenu]);
+  
+    const resetForm = useCallback(() => {
+      setForm(emptyForm);
+      setTeamInput('');
+    }, [emptyForm]);
+  
+    const handleAddCase = useCallback(async (localForm) => {
+      try {
+        const newCase = {
+          ...localForm,
+          caseNumber: `CSE/${new Date().getFullYear()}/${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+          timeline: [{
+            id: 't1',
+            date: new Date().toISOString().split('T')[0],
+            text: 'Case created',
+            status: 'completed'
+          }],
+          attachments: [],
+          subtasks: []
+        };
+  
+        await dispatch(createCase(newCase)).unwrap();
         resetForm();
         setShowAddCaseModal(false);
         setSnackbar({ visible: true, text: 'Case added successfully' });
-      })
-      .catch((error) => {
+        await fetchCases();
+      } catch (error) {
         Alert.alert('Error', error);
-      });
-
-      fetchCases();
-  }
-
-function handleSaveEdit(localForm) {
-  console.log('=== handleSaveEdit Debug ===');
-  console.log('localForm:', JSON.stringify(localForm, null, 2));
+      }
+    }, [dispatch, resetForm, fetchCases]);
   
-  if (!localForm || !localForm.id) {
-    console.error('Invalid form data:', localForm);
-    Alert.alert('Error', 'Invalid form data');
-    return;
-  }
-
-  const caseId = localForm.id;
-  const patchData = { ...localForm };
-  delete patchData.id;
+    const handleSaveEdit = useCallback(async (localForm) => {
+      if (!localForm || !localForm.id) {
+        Alert.alert('Error', 'Invalid form data');
+        return;
+      }
   
-  console.log('caseId:', caseId);
-  console.log('patchData:', JSON.stringify(patchData, null, 2));
-
-  dispatch(updateCase({ caseId, patchData }))
-    .unwrap()
-    .then((response) => {
-      console.log('=== Update Success ===');
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      
-      if (response && response.success) {
-        console.log('Update confirmed successful');
-        setShowEditModal(false);
-        setEditForm(null);
-        setSnackbar({ visible: true, text: 'Case updated successfully' });
-      } else {
-        console.error('Update failed - no success confirmation:', response);
-        Alert.alert('Error', 'Update failed - no success confirmation');
-      }
-    })
-    .catch((error) => {
-      console.log('=== Update Error ===');
-      console.error('Caught error:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error keys:', Object.keys(error || {}));
-      
-      const errorMessage = typeof error === 'string' 
-        ? error 
-        : error?.message || error?.toString() || 'Failed to update case';
+      const caseId = localForm.id;
+      const patchData = { ...localForm };
+      delete patchData.id;
+  
+      try {
+        const response = await dispatch(updateCase({ caseId, patchData })).unwrap();
         
-      console.error('Final error message:', errorMessage);
-      Alert.alert('Error', errorMessage);
+        if (response && response.success) {
+          setShowEditModal(false);
+          setEditForm(null);
+          setSnackbar({ visible: true, text: 'Case updated successfully' });
+          await fetchCases();
+        } else {
+          Alert.alert('Error', 'Update failed - no success confirmation');
+        }
+      } catch (error) {
+        const errorMessage = typeof error === 'string' 
+          ? error 
+          : error?.message || error?.toString() || 'Failed to update case';
+        Alert.alert('Error', errorMessage);
+      }
+    }, [dispatch, fetchCases]);
+  
+    // Memoized filtered cases to prevent unnecessary recalculations
+    const filteredCases = useMemo(() => {
+      return cases
+        .filter((caseItem) => {
+          const q = searchQuery.trim().toLowerCase();
+          const matchesSearch =
+            q === '' ||
+            caseItem.title.toLowerCase().includes(q) ||
+            caseItem.client.toLowerCase().includes(q) ||
+            caseItem.caseNumber.toLowerCase().includes(q);
+  
+          const matchesFilters =
+            selectedFilters.length === 0 ||
+            selectedFilters.includes(caseItem.status) ||
+            selectedFilters.includes(caseItem.type) ||
+            selectedFilters.includes(caseItem.priority);
+  
+          return matchesSearch && matchesFilters;
+        })
+        .sort((a, b) => {
+          if (sortBy === 'date') {
+            return new Date(b.createdAt) - new Date(a.createdAt);
+          }
+          if (sortBy === 'priority') {
+            const order = { critical: 4, high: 3, medium: 2, low: 1 };
+            return (order[b.priority] || 0) - (order[a.priority] || 0);
+          }
+          if (sortBy === 'value') {
+            return parseCurrencyToNumber(b.value) - parseCurrencyToNumber(a.value);
+          }
+          if (sortBy === 'progress') {
+            return b.progress - a.progress;
+          }
+          return 0;
+        });
+    }, [cases, searchQuery, selectedFilters, sortBy]);
+  
+    // Animated values
+    const headerHeight = scrollY.interpolate({
+      inputRange: [0, 100],
+      outputRange: [200, 120],
+      extrapolate: 'clamp'
     });
-}
-
-
-
-  function getCaseStatusInfo(status) {
-    return caseStatuses.find((s) => s.id === status) || caseStatuses[0];
-  }
-
-  function getPriorityColor(priority) {
-    const priorityInfo = priorityOptions.find(p => p.id === priority);
-    return priorityInfo ? priorityInfo.color : colors.textSecondary;
-  }
-
-  function getTimelineEventInfo(type) {
-    return timelineEventTypes.find(t => t.id === type) || timelineEventTypes[timelineEventTypes.length - 1];
-  }
-
-  // Filter and sort cases
-  const filteredCases = cases
-    .filter((caseItem) => {
-      const q = searchQuery.trim().toLowerCase();
-      const matchesSearch =
-        q === '' ||
-        caseItem.title.toLowerCase().includes(q) ||
-        caseItem.client.toLowerCase().includes(q) ||
-        caseItem.caseNumber.toLowerCase().includes(q);
-
-      const matchesFilters =
-        selectedFilters.length === 0 ||
-        selectedFilters.includes(caseItem.status) ||
-        selectedFilters.includes(caseItem.type) ||
-        selectedFilters.includes(caseItem.priority);
-
-      return matchesSearch && matchesFilters;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      }
-      if (sortBy === 'priority') {
-        const order = { critical: 4, high: 3, medium: 2, low: 1 };
-        return (order[b.priority] || 0) - (order[a.priority] || 0);
-      }
-      if (sortBy === 'value') {
-        return parseCurrencyToNumber(b.value) - parseCurrencyToNumber(a.value);
-      }
-      if (sortBy === 'progress') {
-        return b.progress - a.progress;
-      }
-      return 0;
+  
+    const searchBarOpacity = scrollY.interpolate({
+      inputRange: [0, 50],
+      outputRange: [1, 0.95],
+      extrapolate: 'clamp'
     });
-
-  // Animated values
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [200, 120],
-    extrapolate: 'clamp'
-  });
-
-  const searchBarOpacity = scrollY.interpolate({
-    inputRange: [0, 50],
-    outputRange: [1, 0.95],
-    extrapolate: 'clamp'
-  });
-
-  // Subtask handling functions
-  const handleCreateSubtask = (subtaskForm, setSubtaskForm) => {
-    if (!subtaskForm.title.trim()) {
-      Alert.alert('Validation Error', 'Please enter subtask title');
-      return;
-    }
-
-    const newSubtask = {
-      id: `st_${Date.now()}`,
-      title: subtaskForm.title,
-      description: subtaskForm.description,
-      assignedTo: subtaskForm.assignedTo,
-      dueDate: subtaskForm.dueDate,
-      priority: subtaskForm.priority,
-      category: subtaskForm.category,
-      status: 'pending',
-      completedAt: null,
-      createdAt: new Date().toISOString().split('T')[0],
-      createdBy: user?.uid || 'Current User'
-    };
-
-    // Update selected case
-    const updatedCase = {
-      ...selectedCase,
-      subtasks: [...(selectedCase.subtasks || []), newSubtask]
-    };
-
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-    setSelectedCase(updatedCase);
-
-    // Add timeline event
-    const timelineEvent = {
-      id: `t_${Date.now()}`,
-      type: 'custom',
-      title: 'Subtask Created',
-      description: `New subtask "${subtaskForm.title}" has been created`,
-      date: new Date().toISOString().split('T')[0],
-      status: 'completed',
-      createdBy: user?.name || 'Current User'
-    };
-
-    updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
-    setSelectedCase({...updatedCase});
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-
-    dispatch(updateCase({ caseId:updatedCase.id, patchData:updatedCase }))
-    .unwrap()
-    .then((response) => {
-      console.log('=== Update Success ===');
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      
-      if (response && response.success) {
-        console.log('Update confirmed successful');
-        setShowEditModal(false);
-        setEditForm(null);
-        setSnackbar({ visible: true, text: 'Case updated successfully' });
-      } else {
-        console.error('Update failed - no success confirmation:', response);
-        Alert.alert('Error', 'Update failed - no success confirmation');
+  
+    // Memoized subtask handling functions
+    const handleCreateSubtask = useCallback(async (subtaskForm, setSubtaskForm) => {
+      if (!subtaskForm.title.trim()) {
+        Alert.alert('Validation Error', 'Please enter subtask title');
+        return;
       }
-    })
-    .catch((error) => {
-      console.log('=== Update Error ===');
-      console.error('Caught error:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error keys:', Object.keys(error || {}));
-      
-      const errorMessage = typeof error === 'string' 
-        ? error 
-        : error?.message || error?.toString() || 'Failed to update case';
+  
+      const newSubtask = {
+        id: `st_${Date.now()}`,
+        title: subtaskForm.title,
+        description: subtaskForm.description,
+        assignedTo: subtaskForm.assignedTo,
+        dueDate: subtaskForm.dueDate,
+        priority: subtaskForm.priority,
+        category: subtaskForm.category,
+        status: 'pending',
+        completedAt: null,
+        createdAt: new Date().toISOString().split('T')[0],
+        createdBy: user?.uid
+      };
+  
+      const updatedCase = {
+        ...selectedCase,
+        subtasks: [...(selectedCase.subtasks || []), newSubtask]
+      };
+  
+      const timelineEvent = {
+        id: `t_${Date.now()}`,
+        type: 'custom',
+        title: 'Subtask Created',
+        description: `New subtask "${subtaskForm.title}" has been created`,
+        date: new Date().toISOString().split('T')[0],
+        status: 'completed',
+        createdBy: user?.displayName || 'Current User'
+      };
+  
+      updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
+  
+      try {
+        await dispatch(updateCase({ caseId: updatedCase.id, patchData: updatedCase })).unwrap();
         
-      console.error('Final error message:', errorMessage);
-      Alert.alert('Error', errorMessage);
-    });
-
-    setShowAddSubtaskModal(false);
-    setSubtaskForm({
-      title: '',
-      description: '',
-      assignedTo: '',
-      dueDate: '',
-      priority: 'medium',
-      category: 'research'
-    });
-    setSnackbar({ visible: true, text: 'Subtask created successfully' });
-  };
-
-  const handleToggleSubtask = (subtaskId) => {
-    const subtask = selectedCase.subtasks.find(st => st.id === subtaskId);
-    if (!subtask) return;
-
-    const updatedSubtask = {
-      ...subtask,
-      status: subtask.status === 'completed' ? 'pending' : 'completed',
-      completedAt: subtask.status === 'completed' ? null : new Date().toISOString()
-    };
-
-    const updatedCase = {
-      ...selectedCase,
-      subtasks: selectedCase.subtasks.map(st => st.id === subtaskId ? updatedSubtask : st)
-    };
-
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-    setSelectedCase(updatedCase);
-
-    // Add timeline event
-    const timelineEvent = {
-      id: `t_${Date.now()}`,
-      type: subtask.status === 'completed' ? 'custom' : 'milestone_reached',
-      title: subtask.status === 'completed' ? 'Subtask Reopened' : 'Subtask Completed',
-      description: `"${subtask.title}" has been ${subtask.status === 'completed' ? 'reopened' : 'completed'}`,
-      date: new Date().toISOString().split('T')[0],
-      status: 'completed',
-      createdBy: user?.name || 'Current User'
-    };
-
-    updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
-    setSelectedCase({...updatedCase});
-    setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
-
-    dispatch(updateCase({ caseId:updatedCase.id, patchData:updatedCase }))
-    .unwrap()
-    .then((response) => {
-      console.log('=== Update Success ===');
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      
-      if (response && response.success) {
-        console.log('Update confirmed successful');
-        setShowEditModal(false);
-        setEditForm(null);
-        setSnackbar({ visible: true, text: 'Case updated successfully' });
-      } else {
-        console.error('Update failed - no success confirmation:', response);
-        Alert.alert('Error', 'Update failed - no success confirmation');
-      }
-    })
-    .catch((error) => {
-      console.log('=== Update Error ===');
-      console.error('Caught error:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error keys:', Object.keys(error || {}));
-      
-      const errorMessage = typeof error === 'string' 
-        ? error 
-        : error?.message || error?.toString() || 'Failed to update case';
+        setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+        setSelectedCase(updatedCase);
+        setShowAddSubtaskModal(false);
         
-      console.error('Final error message:', errorMessage);
-      Alert.alert('Error', errorMessage);
-    });
-  };
+        setSubtaskForm({
+          title: '',
+          description: '',
+          assignedTo: '',
+          dueDate: '',
+          priority: 'medium',
+          category: 'research'
+        });
+        
+        setSnackbar({ visible: true, text: 'Subtask created successfully' });
+      } catch (error) {
+        const errorMessage = typeof error === 'string' 
+          ? error 
+          : error?.message || error?.toString() || 'Failed to update case';
+        Alert.alert('Error', errorMessage);
+      }
+    }, [selectedCase, user, dispatch]);
+  
+    const handleToggleSubtask = useCallback(async (subtaskId) => {
+      const subtask = selectedCase.subtasks.find(st => st.id === subtaskId);
+      if (!subtask) return;
+  
+      const updatedSubtask = {
+        ...subtask,
+        status: subtask.status === 'completed' ? 'pending' : 'completed',
+        completedAt: subtask.status === 'completed' ? null : new Date().toISOString()
+      };
+  
+      const updatedCase = {
+        ...selectedCase,
+        subtasks: selectedCase.subtasks.map(st => st.id === subtaskId ? updatedSubtask : st)
+      };
+  
+      const timelineEvent = {
+        id: `t_${Date.now()}`,
+        type: subtask.status === 'completed' ? 'custom' : 'milestone_reached',
+        title: subtask.status === 'completed' ? 'Subtask Reopened' : 'Subtask Completed',
+        description: `"${subtask.title}" has been ${subtask.status === 'completed' ? 'reopened' : 'completed'}`,
+        date: new Date().toISOString().split('T')[0],
+        status: 'completed',
+        createdBy: user?.displayName || 'Current User'
+      };
+  
+      updatedCase.timeline = [...(updatedCase.timeline || []), timelineEvent];
+  
+      try {
+        await dispatch(updateCase({ caseId: updatedCase.id, patchData: updatedCase })).unwrap();
+        setCases(prev => prev.map(c => c.id === selectedCase.id ? updatedCase : c));
+        setSelectedCase(updatedCase);
+      } catch (error) {
+        const errorMessage = typeof error === 'string' 
+          ? error 
+          : error?.message || error?.toString() || 'Failed to update case';
+        Alert.alert('Error', errorMessage);
+      }
+    }, [selectedCase, user, dispatch]);
+  
+    
 
   // // Timeline handling functions
   // const handleAddTimelineEvent = () => {
@@ -630,11 +508,16 @@ function handleSaveEdit(localForm) {
   // };
 
   // Enhanced Case Details Modal
-  function CaseDetailsModal() {
+  const CaseDetailsModal = useCallback(() => {
     const [activeTab, setActiveTab] = useState('overview');
     const [timelineAnimations] = useState(
       selectedCase?.timeline?.map(() => new Animated.Value(0)) || []
     );
+
+    const getUserNameByUid = useCallback((uid) => {
+      const user = users.find(u => u.uid === uid);
+      return user ? user.displayName : 'Unknown';
+    }, [users]);
 
     useEffect(() => {
       if (selectedCase?.timeline) {
@@ -647,7 +530,7 @@ function handleSaveEdit(localForm) {
           }).start();
         });
       }
-    }, [selectedCase]);
+    }, [selectedCase, timelineAnimations]);
 
     if (!selectedCase) return null;
 
@@ -660,8 +543,6 @@ function handleSaveEdit(localForm) {
     ];
 
     const canAddContent = user?.role === 'lawyer' || user?.role === 'admin';
-    const canViewDocuments = true; // Both users and lawyers can view
-    const canAddDocuments = true; // Both users and lawyers can add documents
 
     return (
       <Modal visible={showCaseDetailsModal} animationType="slide" statusBarTranslucent>
@@ -886,14 +767,6 @@ function handleSaveEdit(localForm) {
                 <View style={styles.tabContent}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Case Timeline</Text>
-                    {/* {canAddContent && (
-                      <TouchableOpacity 
-                        style={styles.addButton}
-                        onPress={() => setShowAddTimelineModal(true)}
-                      >
-                        <MaterialCommunityIcons name="plus" size={20} color="white" />
-                      </TouchableOpacity>
-                    )} */}
                   </View>
 
                   {(selectedCase.timeline ?? []).slice().sort((a, b) => new Date(b.date) - new Date(a.date)).map((event, index) => {
@@ -924,19 +797,6 @@ function handleSaveEdit(localForm) {
                         <Surface style={styles.timelineContent}>
                           <View style={styles.timelineHeader}>
                             <Text style={styles.timelineDate}>{event.date}</Text>
-                            {/* <Chip 
-                              compact 
-                              style={[
-                                styles.timelineStatus,
-                                { backgroundColor: eventInfo.color + '15' }
-                              ]}
-                              textStyle={{
-                                color: eventInfo.color,
-                                fontSize: 10
-                              }}
-                            >
-                              {event.status}
-                            </Chip> */}
                           </View>
                           <Text style={styles.timelineTitle}>{event.title}</Text>
                           {event.description && (
@@ -956,14 +816,12 @@ function handleSaveEdit(localForm) {
                 <View style={styles.tabContent}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Documents ({selectedCase.attachments?.length || 0})</Text>
-                    {canAddDocuments && (
-                      <TouchableOpacity 
-                        style={styles.addButton}
-                        onPress={() => setShowAddDocumentModal(true)}
-                      >
-                        <MaterialCommunityIcons name="plus" size={20} color="white" />
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity 
+                      style={styles.addButton}
+                      onPress={() => setShowAddDocumentModal(true)}
+                    >
+                      <MaterialCommunityIcons name="plus" size={20} color="white" />
+                    </TouchableOpacity>
                   </View>
 
                   {selectedCase.attachments?.length > 0 ? (
@@ -1126,7 +984,7 @@ function handleSaveEdit(localForm) {
                         style={styles.teamMemberAvatar}
                       />
                       <View style={styles.teamMemberInfo}>
-                        <Text style={styles.teamMemberName}>{member}</Text>
+                        <Text style={styles.teamMemberName}>{getUserNameByUid(member)}</Text>
                         <Text style={styles.teamMemberRole}>
                           {member.includes('Jr.') ? 'Junior Associate' : 'Advocate'}
                         </Text>
@@ -1156,7 +1014,7 @@ function handleSaveEdit(localForm) {
         </View>
       </Modal>
     );
-  }
+  }, [selectedCase, showCaseDetailsModal, users, user?.role, handleEdit, handleToggleSubtask, setShowAddDocumentModal, setShowAddSubtaskModal]);
 
   // Enhanced Add/Edit Modal
   function AddEditModal({ visible, onClose, isEdit }) {
@@ -1167,6 +1025,11 @@ function handleSaveEdit(localForm) {
     const [showPrioritySelector, setShowPrioritySelector] = useState(false);
     const [showPicker, setShowPicker] = useState(false);
     const [filteredUsers, setFilteredUsers] = useState([]);
+    
+    const getUserNameByUid = (uid) => {
+      const user = users.find(u => u.uid === uid);
+      return user ? user.displayName : 'Unknown';
+    };
 
     const handleInputChange = (text) => {
       setLocalTeamInput(text);
@@ -1237,10 +1100,12 @@ function handleSaveEdit(localForm) {
           return;
         }
 
+        const uid = validUser.uid;
+
         // Update the form with the new team member
         setLocalForm(prev => ({
           ...prev,
-          team: [...currentTeam, name]
+          team: [...currentTeam, uid]
         }));
 
         // Clear the input
@@ -1592,7 +1457,7 @@ function handleSaveEdit(localForm) {
                                   label={member.split(' ')[1]?.charAt(0) || member.charAt(0)}
                                   style={styles.teamChipAvatar}
                                 />
-                                <Text style={styles.teamChipText}>{member}</Text>
+                                <Text style={styles.teamChipText}>{getUserNameByUid(member)}</Text>
                                 <TouchableOpacity
                                   style={styles.teamChipRemove}
                                   onPress={() => removeLocalTeamMember(member)}
@@ -1637,11 +1502,8 @@ function handleSaveEdit(localForm) {
   }
 
   // Add Document Modal
-  function AddDocumentModal() {
-
-    
-  const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
-     // Document form state
+  const AddDocumentModal = useCallback(() => {
+    const [documentUploadProgress, setDocumentUploadProgress] = useState(0);
     const [documentForm, setDocumentForm] = useState({
         name: '',
         description: '',
@@ -1650,8 +1512,6 @@ function handleSaveEdit(localForm) {
         file: null
       });
 
-
-        // Document handling functions
     const handleDocumentPick = async () => {
       try {
         const result = await DocumentPicker.getDocumentAsync({
@@ -1663,7 +1523,6 @@ function handleSaveEdit(localForm) {
         if (!result.canceled && result.assets?.length > 0) {
           const file = result.assets[0];
 
-          // Block videos
           if (file.mimeType && file.mimeType.startsWith('video/')) {
             Alert.alert('Invalid File', 'Video files are not allowed.');
             return;
@@ -1690,19 +1549,16 @@ function handleSaveEdit(localForm) {
     setDocumentUploadProgress(0);
 
     try {
-      const storage = getStorage(); // Uses your initialized Firebase app
+      const storage = getStorage();
       const { uri, name } = documentForm.file;
       const fileName = name || `document_${Date.now()}`;
       const uploadUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
 
-      // Fetch the file data into a Blob (firebase/storage requires Blob in RN)
       const response = await fetch(uploadUri);
       const blob = await response.blob();
 
-      // Create a storage reference
       const storageRef = ref(storage, `cases/${selectedCase.id}/documents/${fileName}`);
 
-      // Start upload
       const uploadTask = uploadBytesResumable(storageRef, blob);
 
       uploadTask.on(
@@ -1718,7 +1574,6 @@ function handleSaveEdit(localForm) {
           Alert.alert('Upload Failed', error.message);
         },
         async () => {
-          // Get download URL
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
 
           const newDocument = {
@@ -1739,7 +1594,7 @@ function handleSaveEdit(localForm) {
             uploadedAt: new Date().toISOString().split('T')[0],
             isPublic: documentForm.isPublic,
             description: documentForm.description,
-            uri: downloadURL, // ✅ Public URL from Firebase
+            uri: downloadURL,
           };
 
           const updatedCase = {
@@ -1922,10 +1777,10 @@ function handleSaveEdit(localForm) {
         </View>
       </Modal>
     );
-  }
+  }, [showAddDocumentModal, selectedCase, user, dispatch, isUploading]);
 
   // Add Subtask Modal
-    function AddSubtaskModal() {
+    const AddSubtaskModal = useCallback(() => {
       const [subtaskForm, setSubtaskForm] = useState({
         title: '',
         description: '',
@@ -1938,7 +1793,6 @@ function handleSaveEdit(localForm) {
       const [showPicker, setShowPicker] = useState(false);
       const [filteredUsers, setFilteredUsers] = useState([]);
 
-      // Handle Assign To input change
       const handleAssignToChange = (text) => {
         setSubtaskForm(prev => ({ ...prev, assignedTo: text }));
 
@@ -1952,7 +1806,6 @@ function handleSaveEdit(localForm) {
         }
       };
 
-      // Ensure assignedTo is valid before creating subtask
       const validateAndCreateSubtask = () => {
         const name = subtaskForm.assignedTo.trim();
         if (!name) {
@@ -1991,7 +1844,6 @@ function handleSaveEdit(localForm) {
               </View>
 
               <ScrollView style={styles.addModalScroll}>
-                {/* Task Title */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Task Title *</Text>
                   <TextInput
@@ -2003,7 +1855,6 @@ function handleSaveEdit(localForm) {
                   />
                 </View>
 
-                {/* Description */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Description</Text>
                   <TextInput
@@ -2017,7 +1868,6 @@ function handleSaveEdit(localForm) {
                   />
                 </View>
 
-                {/* Assign To */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Assign To</Text>
                   <View style={{ position: 'relative' }}>
@@ -2067,7 +1917,6 @@ function handleSaveEdit(localForm) {
                   </View>
                 </View>
 
-                {/* Due Date */}
                 <View style={styles.formRow}>
                   <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                     <Text style={styles.formLabel}>Due Date</Text>
@@ -2090,7 +1939,6 @@ function handleSaveEdit(localForm) {
                     )}
                   </View>
 
-                  {/* Priority */}
                   <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                     <Text style={styles.formLabel}>Priority</Text>
                     <View style={styles.priorityButtons}>
@@ -2118,7 +1966,6 @@ function handleSaveEdit(localForm) {
                   </View>
                 </View>
 
-                {/* Category */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Category</Text>
                   <View style={styles.categoryChips}>
@@ -2142,7 +1989,6 @@ function handleSaveEdit(localForm) {
                 </View>
               </ScrollView>
 
-              {/* Actions */}
               <View style={styles.addModalActions}>
                 <TouchableOpacity
                   style={styles.addModalCancel}
@@ -2161,7 +2007,7 @@ function handleSaveEdit(localForm) {
           </View>
         </Modal>
       );
-    }
+    }, [showAddSubtaskModal, users, handleCreateSubtask]);
 
 
   // // Add Timeline Event Modal
@@ -2308,234 +2154,222 @@ function handleSaveEdit(localForm) {
   // }
 
   // Basic handlers (keeping original functionality)
-  function handleBack() {
-    if (navigation && navigation.goBack) {
-      navigation.goBack();
-      return;
-    }
-    Alert.alert('Back', 'Back pressed (no navigation provided)');
-  }
+  // function handleBack() {
+  //   if (navigation && navigation.goBack) {
+  //     navigation.goBack();
+  //     return;
+  //   }
+  //   Alert.alert('Back', 'Back pressed (no navigation provided)');
+  // }
 
-  function openMenuFor(caseItemId) {
-    setMenuVisibleFor(caseItemId);
-  }
+  // function openMenuFor(caseItemId) {
+  //   setMenuVisibleFor(caseItemId);
+  // }
 
-  function closeMenu() {
-    setMenuVisibleFor(null);
-  }
+  // function closeMenu() {
+  //   setMenuVisibleFor(null);
+  // }
 
-  function handleViewDetails(caseItem) {
-    setSelectedCase(caseItem);
-    setShowCaseDetailsModal(true);
-    closeMenu();
-  }
+  // function handleViewDetails(caseItem) {
+  //   setSelectedCase(caseItem);
+  //   setShowCaseDetailsModal(true);
+  //   closeMenu();
+  // }
 
-  function handleEdit(caseItem) {
-    setSelectedCase(caseItem);
-    setEditForm(caseItem);
-    setShowEditModal(true);
-    closeMenu();
-  }
+  // function handleEdit(caseItem) {
+  //   setSelectedCase(caseItem);
+  //   setEditForm(caseItem);
+  //   setShowEditModal(true);
+  //   closeMenu();
+  // }
 
   // Render Case Card (simplified version of original)
-const renderCaseCard = ({ item, index }) => {
-  const isMenuOpen = menuVisibleFor === item.id;
-  const cardWidth = viewMode === 'grid' ? (width - 72) / 2 : '100%';
+  const renderCaseCard = useCallback(({ item, index }) => {
+    const isMenuOpen = menuVisibleFor === item.id;
+    const cardWidth = viewMode === 'grid' ? (width - 72) / 2 : '100%';
 
-  // Debug logging (remove in production)
-  if (__DEV__) {
-    console.log('Rendering case card for item:', {
-      id: item.id,
-      title: item.title,
-      team: item.team,
-      teamType: typeof item.team,
-      teamIsArray: Array.isArray(item.team),
-      teamLength: item.team?.length
-    });
-  }
+    const getTeamMembers = (team) => {
+      if (!team) return [];
+      if (typeof team === 'string') {
+        return team.split(',').map(name => name.trim()).filter(name => name);
+      }
+      if (Array.isArray(team)) return team;
+      if (typeof team === 'object') {
+        return Object.values(team).filter(Boolean);
+      }
+      return [];
+    };
 
-  // Safe team handling
-  const getTeamMembers = (team) => {
-    // Handle undefined, null, or non-array team
-    if (!team) return [];
-    if (typeof team === 'string') {
-      // If team is a comma-separated string, split it
-      return team.split(',').map(name => name.trim()).filter(name => name);
-    }
-    if (Array.isArray(team)) return team;
-    // If team is an object, try to extract meaningful data
-    if (typeof team === 'object') {
-      return Object.values(team).filter(Boolean);
-    }
-    return [];
-  };
+    const getUserNameByUid = (uid) => {
+      const user = users.find(u => u.uid === uid);
+      return user ? user.displayName : 'Unknown';
+    };
 
-  // Safe attachment handling
-  const getAttachmentCount = (attachments, documents) => {
-    const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
-    const documentCount = Array.isArray(documents) ? documents.length : 0;
-    return attachmentCount + documentCount;
-  };
+    const getAttachmentCount = (attachments, documents) => {
+      const attachmentCount = Array.isArray(attachments) ? attachments.length : 0;
+      const documentCount = Array.isArray(documents) ? documents.length : 0;
+      return attachmentCount + documentCount;
+    };
 
-  const teamMembers = getTeamMembers(item.team);
-  const displayTeam = teamMembers.slice(0, 3);
-  const attachmentCount = getAttachmentCount(item.attachments, item.documents);
+    const teamMembers = getTeamMembers(item.team);
+    const displayTeam = teamMembers.slice(0, 3);
+    const attachmentCount = getAttachmentCount(item.attachments, item.documents);
 
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => handleViewDetails(item)}
-      style={{ width: cardWidth, marginRight: viewMode === 'grid' && index % 2 === 0 ? 16 : 0 }}
-    >
-      <Surface style={styles.caseCard}>
-        <LinearGradient colors={colors.gradient.glass} style={styles.caseCardGradient}>
-          <View style={styles.caseHeader}>
-            <View style={styles.caseIconContainer}>
-              <LinearGradient colors={colors.gradient.primary} style={styles.caseIcon}>
-                <MaterialCommunityIcons 
-                  name={getCaseTypeInfo(item.type)?.icon || 'briefcase'} 
-                  size={20} 
-                  color="white" 
-                />
-              </LinearGradient>
+    return (
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => handleViewDetails(item)}
+        style={{ width: cardWidth, marginRight: viewMode === 'grid' && index % 2 === 0 ? 16 : 0 }}
+      >
+        <Surface style={styles.caseCard}>
+          <LinearGradient colors={colors.gradient.glass} style={styles.caseCardGradient}>
+            <View style={styles.caseHeader}>
+              <View style={styles.caseIconContainer}>
+                <LinearGradient colors={colors.gradient.primary} style={styles.caseIcon}>
+                  <MaterialCommunityIcons 
+                    name={getCaseTypeInfo(item.type)?.icon || 'briefcase'} 
+                    size={20} 
+                    color="white" 
+                  />
+                </LinearGradient>
+              </View>
+
+              <View style={styles.caseMainInfo}>
+                <View style={styles.caseTitleRow}>
+                  <Text style={styles.caseTitle} numberOfLines={2}>
+                    {item.title || 'Untitled Case'}
+                  </Text>
+                  <View style={styles.priorityIndicator}>
+                    <View style={[
+                      styles.priorityDot, 
+                      { backgroundColor: getPriorityColor(item.priority) || colors.textSecondary }
+                    ]} />
+                  </View>
+                </View>
+
+                <Text style={styles.caseClient}>{item.client || item.clientName || 'Unknown Client'}</Text>
+                <Text style={styles.caseNumber}>{item.caseNumber || item.id}</Text>
+              </View>
+
+              <Menu
+                visible={isMenuOpen}
+                onDismiss={closeMenu}
+                anchor={
+                  <TouchableOpacity onPress={() => openMenuFor(item.id)} style={styles.moreButton}>
+                    <MaterialCommunityIcons name="dots-vertical" size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                }
+              >
+                <Menu.Item onPress={() => handleViewDetails(item)} title="View Details" leadingIcon="eye" />
+                <Menu.Item onPress={() => handleEdit(item)} title="Edit Case" leadingIcon="pencil" />
+                <Divider />
+                <Menu.Item onPress={() => handleDelete(item)} title="Delete" leadingIcon="delete" />
+              </Menu>
             </View>
 
-            <View style={styles.caseMainInfo}>
-              <View style={styles.caseTitleRow}>
-                <Text style={styles.caseTitle} numberOfLines={2}>
-                  {item.title || 'Untitled Case'}
-                </Text>
-                <View style={styles.priorityIndicator}>
-                  <View style={[
-                    styles.priorityDot, 
-                    { backgroundColor: getPriorityColor(item.priority) || colors.textSecondary }
-                  ]} />
+            <View style={styles.caseMetaContainer}>
+              <View style={styles.caseMetaRow}>
+                <Chip
+                  mode="flat"
+                  compact
+                  style={[
+                    styles.statusChip, 
+                    { backgroundColor: (getCaseStatusInfo(item.status)?.color || colors.textSecondary) + '15' }
+                  ]}
+                  textStyle={{ 
+                    color: getCaseStatusInfo(item.status)?.color || colors.textSecondary, 
+                    fontSize: 10, 
+                    fontWeight: '700' 
+                  }}
+                  icon={getCaseStatusInfo(item.status)?.icon || 'circle'}
+                >
+                  {getCaseStatusInfo(item.status)?.label || item.status || 'Unknown'}
+                </Chip>
+
+                <Chip mode="outlined" compact style={styles.typeChip} textStyle={styles.typeChipText}>
+                  {getCaseTypeInfo(item.type)?.label || item.type || 'Unknown'}
+                </Chip>
+              </View>
+
+              <View style={styles.valueContainer}>
+                <Text style={styles.caseValue}>{item.value || item.amount || 'N/A'}</Text>
+                <MaterialCommunityIcons name="trending-up" size={14} color={colors.success} />
+              </View>
+            </View>
+
+            <View style={styles.progressSection}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>Progress</Text>
+                <Text style={styles.progressPercent}>{item.progress || 0}%</Text>
+              </View>
+              <ProgressBar 
+                progress={(item.progress || 0) / 100} 
+                color={colors.primary} 
+                style={styles.progressBar} 
+              />
+            </View>
+
+            <View style={styles.caseFooter}>
+              <View style={styles.footerLeft}>
+                <View style={styles.teamAvatars}>
+                  {displayTeam.length > 0 ? (
+                    <>
+                      {displayTeam.map((member, idx) => {
+                        const memberName = typeof member === 'string' ? member : member?.name || member?.displayName || 'Unknown';
+                        const initials = memberName.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
+                        
+                        return (
+                          <Avatar.Text 
+                            key={`${item.id}-member-${idx}`}
+                            size={24} 
+                            label={initials || '?'}
+                            style={[styles.teamAvatar, { marginLeft: idx > 0 ? -8 : 0 }]} 
+                          />
+                        );
+                      })}
+                      {teamMembers.length > 3 && (
+                        <View style={styles.moreTeamMembers}>
+                          <Text style={styles.moreTeamText}>+{teamMembers.length - 3}</Text>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <View style={styles.noTeamIndicator}>
+                      <MaterialCommunityIcons 
+                        name="account-plus" 
+                        size={16} 
+                        color={colors.textSecondary} 
+                      />
+                      <Text style={styles.noTeamText}>No team</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.documentsInfo}>
+                  <MaterialCommunityIcons name="file-document-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.documentsText}>{attachmentCount} docs</Text>
                 </View>
               </View>
 
-              <Text style={styles.caseClient}>{item.client || item.clientName || 'Unknown Client'}</Text>
-              <Text style={styles.caseNumber}>{item.caseNumber || item.id}</Text>
-            </View>
-
-            <Menu
-              visible={isMenuOpen}
-              onDismiss={closeMenu}
-              anchor={
-                <TouchableOpacity onPress={() => openMenuFor(item.id)} style={styles.moreButton}>
-                  <MaterialCommunityIcons name="dots-vertical" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              }
-            >
-              <Menu.Item onPress={() => handleViewDetails(item)} title="View Details" leadingIcon="eye" />
-              <Menu.Item onPress={() => handleEdit(item)} title="Edit Case" leadingIcon="pencil" />
-              <Divider />
-              <Menu.Item onPress={() => handleDelete(item)} title="Delete" leadingIcon="delete" />
-            </Menu>
-          </View>
-
-          <View style={styles.caseMetaContainer}>
-            <View style={styles.caseMetaRow}>
-              <Chip
-                mode="flat"
-                compact
-                style={[
-                  styles.statusChip, 
-                  { backgroundColor: (getCaseStatusInfo(item.status)?.color || colors.textSecondary) + '15' }
-                ]}
-                textStyle={{ 
-                  color: getCaseStatusInfo(item.status)?.color || colors.textSecondary, 
-                  fontSize: 10, 
-                  fontWeight: '700' 
-                }}
-                icon={getCaseStatusInfo(item.status)?.icon || 'circle'}
-              >
-                {getCaseStatusInfo(item.status)?.label || item.status || 'Unknown'}
-              </Chip>
-
-              <Chip mode="outlined" compact style={styles.typeChip} textStyle={styles.typeChipText}>
-                {getCaseTypeInfo(item.type)?.label || item.type || 'Unknown'}
-              </Chip>
-            </View>
-
-            <View style={styles.valueContainer}>
-              <Text style={styles.caseValue}>{item.value || item.amount || 'N/A'}</Text>
-              <MaterialCommunityIcons name="trending-up" size={14} color={colors.success} />
-            </View>
-          </View>
-
-          <View style={styles.progressSection}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Progress</Text>
-              <Text style={styles.progressPercent}>{item.progress || 0}%</Text>
-            </View>
-            <ProgressBar 
-              progress={(item.progress || 0) / 100} 
-              color={colors.primary} 
-              style={styles.progressBar} 
-            />
-          </View>
-
-          <View style={styles.caseFooter}>
-            <View style={styles.footerLeft}>
-              <View style={styles.teamAvatars}>
-                {displayTeam.length > 0 ? (
-                  <>
-                    {displayTeam.map((member, idx) => {
-                      // Handle both string names and objects
-                      const memberName = typeof member === 'string' ? member : member?.name || member?.displayName || 'Unknown';
-                      const initials = memberName.split(' ').map(n => n.charAt(0)).join('').toUpperCase();
-                      
-                      return (
-                        <Avatar.Text 
-                          key={`${item.id}-member-${idx}`}
-                          size={24} 
-                          label={initials || '?'}
-                          style={[styles.teamAvatar, { marginLeft: idx > 0 ? -8 : 0 }]} 
-                        />
-                      );
-                    })}
-                    {teamMembers.length > 3 && (
-                      <View style={styles.moreTeamMembers}>
-                        <Text style={styles.moreTeamText}>+{teamMembers.length - 3}</Text>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <View style={styles.noTeamIndicator}>
-                    <MaterialCommunityIcons 
-                      name="account-plus" 
-                      size={16} 
-                      color={colors.textSecondary} 
-                    />
-                    <Text style={styles.noTeamText}>No team</Text>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.documentsInfo}>
-                <MaterialCommunityIcons name="file-document-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.documentsText}>{attachmentCount} docs</Text>
+              <View style={styles.footerRight}>
+                <View style={styles.nextHearing}>
+                  <MaterialCommunityIcons name="calendar-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.nextHearingText}>
+                    {item.nextHearing === 'Completed' || item.status === 'completed' 
+                      ? 'Completed' 
+                      : item.nextHearing 
+                        ? `Next: ${item.nextHearing}` 
+                        : 'No hearing scheduled'}
+                  </Text>
+                </View>
               </View>
             </View>
+          </LinearGradient>
+        </Surface>
+      </TouchableOpacity>
+    );
+  }, [viewMode, width, menuVisibleFor, users, handleViewDetails, closeMenu, openMenuFor, handleEdit, handleDelete]);
 
-            <View style={styles.footerRight}>
-              <View style={styles.nextHearing}>
-                <MaterialCommunityIcons name="calendar-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.nextHearingText}>
-                  {item.nextHearing === 'Completed' || item.status === 'completed' 
-                    ? 'Completed' 
-                    : item.nextHearing 
-                      ? `Next: ${item.nextHearing}` 
-                      : 'No hearing scheduled'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </LinearGradient>
-      </Surface>
-    </TouchableOpacity>
-  );
-};
 
   return (
     <View style={styles.container}>

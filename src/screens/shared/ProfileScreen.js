@@ -7,6 +7,7 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  Animated
 } from 'react-native';
 import {
   Text,
@@ -144,7 +145,7 @@ export default function ProfileScreen() {
           </View>
           
           <View style={styles.headerInfo}>
-            <Text style={styles.userName}>{user?.name || 'User Name'}</Text>
+            <Text style={styles.userName}>{user?.displayName || 'User Name'}</Text>
             <View style={styles.roleContainer}>
               <Badge size={20} style={styles.roleBadge}>
                 {user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client'}

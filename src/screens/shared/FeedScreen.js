@@ -67,7 +67,7 @@ function CustomDrawerContent(props) {
               style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }}
             />
           <View style={drawerStyles.info}>
-            <Text style={drawerStyles.name}>{user?.name || 'User Name'}</Text>
+            <Text style={drawerStyles.name}>{user?.displayName || 'User Name'}</Text>
             <Text style={drawerStyles.headline}>{user?.headline || 'Your Headline'}</Text>
           </View>
         </TouchableOpacity>
@@ -132,7 +132,7 @@ function CreatePostModal({ visible, onClose, onSubmit, user }) {
     const newPost = {
       id: Date.now(),
       author: {
-        name: user?.name || 'User Name',
+        name: user?.displayName || 'User Name',
         role: user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client',
         firm: user?.firm || 'Legal Professional',
         avatar: user?.avatar || 'https://www.pngplay.com/wp-content/uploads/12/User-Avatar-Profile-PNG-Free-File-Download.png',
@@ -189,7 +189,7 @@ function CreatePostModal({ visible, onClose, onSubmit, user }) {
               style={styles.modalAvatar} 
             />
             <View>
-              <Text style={styles.modalAuthorName}>{user?.name || 'User Name'}</Text>
+              <Text style={styles.modalAuthorName}>{user?.displayName || 'User Name'}</Text>
               <Text style={styles.modalAuthorRole}>
                 {user?.role === USER_ROLES.LAWYER ? 'Lawyer' : 'Client'}
               </Text>
@@ -267,7 +267,7 @@ function CommentsModal({ visible, onClose, post, onAddComment }) {
     const newComment = {
       id: Date.now(),
       author: {
-        name: user?.name || 'User Name',
+        name: user?.displayName || 'User Name',
         avatar: user?.avatar || 'https://www.pngplay.com/wp-content/uploads/12/User-Avatar-Profile-PNG-Free-File-Download.png'
       },
       content: commentText,

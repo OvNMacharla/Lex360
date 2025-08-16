@@ -1,4 +1,4 @@
-import React, { useState, useEffect,useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -7,7 +7,8 @@ import {
   Dimensions,
   StatusBar,
   Animated,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import { 
   Card, 
@@ -70,33 +71,100 @@ export default function LawyerDashboard() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [goalPeriod, setGoalPeriod] = useState('monthly');
   const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
+  // Memoized calculations for performance
+  const dashboardMetrics = useMemo(() => {
+    if (!cases.length) return {
+      totalActiveValue: 0,
+      activeClientsCount: 0,
+      completedTasks: 0,
+      totalTasks: 0,
+      successRate: 0,
+      monthlyRevenue: 0
+    };
 
-      const getActiveCaseValue = (cases) => {
-        return cases
-          .filter(c => c.status === "active")
-          .reduce((total, c) => {
-            const caseValue = parseFloat(
-              String(c.value || "0").replace(/[₹,]/g, "") // remove ₹ and commas
-            );
-            return total + (isNaN(caseValue) ? 0 : caseValue);
-          }, 0);
-      };
+    const activeClients = new Set(
+      cases
+        .filter(c => c.status === "active" && c.client)
+        .map(c => c.client.trim())
+    );
 
-      // 2. Unique active clients count
-      const getActiveClients = (cases) => {
-        const activeClients = new Set(
-          cases
-            .filter(c => c.status === "active" && c.client)
-            .map(c => c.client.trim())
+    const totalActiveValue = cases
+      .filter(c => c.status === "active")
+      .reduce((total, c) => {
+        const caseValue = parseFloat(
+          String(c.value || "0").replace(/[₹,]/g, "")
         );
-        return activeClients.size;
+        return total + (isNaN(caseValue) ? 0 : caseValue);
+      }, 0);
+
+    const allSubtasks = cases.flatMap(c => Array.isArray(c.subtasks) ? c.subtasks : []);
+    const completedTasks = allSubtasks.filter(st => st.status === 'completed').length;
+    const totalTasks = allSubtasks.length;
+    const successRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    return {
+      totalActiveValue,
+      activeClientsCount: activeClients.size,
+      completedTasks,
+      totalTasks,
+      successRate,
+      monthlyRevenue: totalActiveValue / 100000 // Convert to lakhs
+    };
+  }, [cases]);
+
+  // Chart data generation based on actual case data
+  const chartData = useMemo(() => {
+    if (!cases.length) return [];
+
+    // Group cases by creation month for trend analysis
+    const monthlyData = {};
+    const currentYear = new Date().getFullYear();
+    
+    // Initialize last 4 months + current month (5 total)
+    for (let i = 4; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      monthlyData[monthKey] = {
+        month: monthName,
+        cases: 0,
+        revenue: 0,
+        completed: 0,
+        success: 0
       };
+    }
 
-      const totalActiveValue = useMemo(() => getActiveCaseValue(cases), [cases]);
-      const activeClientsCount = useMemo(() => getActiveClients(cases), [cases]);
+    // Populate with actual case data
+    cases.forEach(caseItem => {
+      let caseDate;
+      if (caseItem.createdAt) {
+        caseDate = new Date(caseItem.createdAt);
+      } else {
+        // Fallback to current date if createdAt is null
+        caseDate = new Date();
+      }
 
+      const monthKey = `${caseDate.getFullYear()}-${String(caseDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].cases += 1;
+        monthlyData[monthKey].revenue += parseFloat(String(caseItem.value || "0").replace(/[₹,]/g, "")) / 100000;
+        
+        const subtasks = Array.isArray(caseItem.subtasks) ? caseItem.subtasks : [];
+        const completedSubtasks = subtasks.filter(st => st.status === 'completed').length;
+        monthlyData[monthKey].completed += completedSubtasks;
+        monthlyData[monthKey].success = subtasks.length > 0 ? 
+          Math.round((completedSubtasks / subtasks.length) * 100) : 0;
+      }
+    });
 
+    return Object.values(monthlyData);
+  }, [cases]);
 
   useEffect(() => {
     if (user?.uid && user?.role) {
@@ -106,18 +174,26 @@ export default function LawyerDashboard() {
   
   const fetchCases = async () => {
     try {
-      const cases = await dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap();
-      setCases(cases);
-      console.log('Fetched cases:', cases);
+      setLoading(true);
+      const casesData = await dispatch(getUserCases({ 
+        userId: user.uid, 
+        userRole: user.role 
+      })).unwrap();
+      
+      setCases(casesData || []);
+      console.log('Fetched cases:', casesData);
     } catch (error) {
       console.error('Failed to fetch cases:', error);
+      setCases([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddCase = (caseData) => {
-    // Handle the new case data
-    console.log('New case created:', caseData);
-    setShowAddCaseModal(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchCases();
+    setRefreshing(false);
   };
 
   const stats = [
@@ -133,127 +209,70 @@ export default function LawyerDashboard() {
       description: 'This month'
     },
     { 
-      label: 'Consultations', 
-      value: '8', 
-      change: '+3',
-      trend: 'up',
-      icon: 'calendar-star', 
-      gradient: colors.gradient.info,
-      glowColor: colors.info,
-      screen: SCREEN_NAMES.MY_CONSULTATIONS,
-      description: 'Scheduled'
-    },
-    { 
       label: 'Success Rate', 
-      value: '96%', 
+      value: `${dashboardMetrics.successRate}%`, 
       change: '+4%',
       trend: 'up',
       icon: 'trophy-variant', 
       gradient: colors.gradient.success,
       glowColor: colors.success,
-      description: 'Win ratio'
+      description: 'Completion ratio'
     },
     { 
-      label: 'Revenue', 
-      value: '₹2.4L', 
+      label: 'Active Value', 
+      value: `₹${(dashboardMetrics.totalActiveValue / 100000).toFixed(1)}L`, 
       change: '+12%',
       trend: 'up',
       icon: 'diamond', 
       gradient: colors.gradient.gold,
       screen: SCREEN_NAMES.REVENUE,
       glowColor: colors.secondary,
-      description: 'This month'
+      description: 'Total portfolio'
+    },
+    { 
+      label: 'Active Clients', 
+      value: dashboardMetrics.activeClientsCount.toString(), 
+      change: '+3',
+      trend: 'up',
+      icon: 'account-group', 
+      gradient: colors.gradient.info,
+      glowColor: colors.info,
+      screen: SCREEN_NAMES.MY_CONSULTATIONS,
+      description: 'Current clients'
     },
   ];
 
-  // const allTasks = [
-  //   {
-  //     id: 1,
-  //     title: 'Supreme Court Filing',
-  //     client: 'Reliance Industries Ltd.',
-  //     deadline: '2 hours',
-  //     priority: 'critical',
-  //     category: 'Corporate Law',
-  //     progress: 85,
-  //     urgency: 'high',
-  //     value: '₹15L',
-  //     type: 'filing'
-  //   },
-  //   {
-  //     id: 2,
-  //     title: 'M&A Due Diligence Review',
-  //     client: 'TechCorp Acquisition',
-  //     deadline: '4:30 PM Today',
-  //     priority: 'high',
-  //     category: 'Corporate Law',
-  //     progress: 60,
-  //     urgency: 'medium',
-  //     value: '₹8L',
-  //     type: 'review'
-  //   },
-  //   {
-  //     id: 3,
-  //     title: 'IPO Compliance Audit',
-  //     client: 'StartupX Ltd.',
-  //     deadline: 'Tomorrow 9 AM',
-  //     priority: 'medium',
-  //     category: 'Securities Law',
-  //     progress: 30,
-  //     urgency: 'low',
-  //     value: '₹5L',
-  //     type: 'audit'
-  //   },
-  //   {
-  //     id: 4,
-  //     title: 'Contract Negotiation',
-  //     client: 'Global Tech Inc.',
-  //     deadline: '3 days',
-  //     priority: 'high',
-  //     category: 'Contract Law',
-  //     progress: 75,
-  //     urgency: 'high',
-  //     value: '₹12L',
-  //     type: 'negotiation'
-  //   },
-  //   {
-  //     id: 5,
-  //     title: 'Patent Application',
-  //     client: 'Innovation Labs',
-  //     deadline: '1 week',
-  //     priority: 'low',
-  //     category: 'IP Law',
-  //     progress: 20,
-  //     urgency: 'low',
-  //     value: '₹3L',
-  //     type: 'application'
-  //   }
-  // ];
-
-
-    const allTasks = cases.flatMap(caseItem => {
+  const allTasks = useMemo(() => {
+    return cases.flatMap(caseItem => {
       if (Array.isArray(caseItem.subtasks)) {
         return caseItem.subtasks
           .filter(subtask => subtask.status !== "completed")
           .map(subtask => {
-            // Safe deadline text
             let deadlineText = '';
             if (subtask.dueDate) {
               const due = new Date(subtask.dueDate);
               const now = new Date();
               const diffMs = due - now;
               const diffHrs = Math.ceil(diffMs / (1000 * 60 * 60));
-              deadlineText = diffHrs > 0 ? `${diffHrs} hours` : "Due now";
+              if (diffHrs > 24) {
+                const diffDays = Math.ceil(diffHrs / 24);
+                deadlineText = `${diffDays} days`;
+              } else if (diffHrs > 0) {
+                deadlineText = `${diffHrs} hours`;
+              } else {
+                deadlineText = "Overdue";
+              }
             }
+            
             return {
               id: subtask.id,
               title: subtask.title,
-              client: caseItem.client, // from main case
+              client: caseItem.client,
               priority: subtask.priority,
               category: subtask.category,
               progress: subtask.progress || 0,
               urgency: subtask.priority,
               value: caseItem.value,
-              // type: subtask.type || "subtask",
               deadline: deadlineText || "No deadline",
               assignedTo: subtask.assignedTo || "",
               caseTitle: caseItem.title,
@@ -263,19 +282,17 @@ export default function LawyerDashboard() {
       }
       return [];
     });
-
-
+  }, [cases]);
 
   const filterButtons = [
     { key: 'all', label: 'All Tasks', icon: 'view-grid', count: allTasks.length },
     { key: 'critical', label: 'Critical', icon: 'alert-circle', count: allTasks.filter(t => t.priority === 'critical').length },
     { key: 'high', label: 'High Priority', icon: 'flag', count: allTasks.filter(t => t.priority === 'high').length },
-    { key: 'today', label: 'Due Today', icon: 'clock-alert', count: allTasks.filter(t => t.deadline.includes('Today') || t.deadline.includes('hours')).length },
+    { key: 'overdue', label: 'Overdue', icon: 'clock-alert', count: allTasks.filter(t => t.deadline === 'Overdue').length },
   ];
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-
     if (hour < 12) return "Good Morning ☀️";
     if (hour < 18) return "Good Afternoon 🌤️";
     return "Good Evening 🌙";
@@ -287,52 +304,11 @@ export default function LawyerDashboard() {
         return allTasks.filter(task => task.priority === 'critical');
       case 'high':
         return allTasks.filter(task => task.priority === 'high');
-      case 'today':
-        return allTasks.filter(task => 
-          (task.deadline || '').includes('Today') || 
-          (task.deadline || '').includes('hours')
-        );
+      case 'overdue':
+        return allTasks.filter(task => task.deadline === 'Overdue');
       default:
         return allTasks;
     }
-  };
-
-
-  const goalPeriods = [
-    { key: 'weekly', label: 'Week', icon: 'calendar-week' },
-    { key: 'monthly', label: 'Month', icon: 'calendar-month' },
-    { key: 'quarterly', label: 'Quarter', icon: 'calendar-range' },
-    { key: 'yearly', label: 'Year', icon: 'calendar' },
-  ];
-
-  const getGoalData = () => {
-    const data = {
-      weekly: {
-        period: 'This Week',
-        casesWon: { current: 6, target: 7, percentage: 86 },
-        revenue: { current: '₹65K', target: '₹75K', percentage: 87 },
-        satisfaction: { current: 4.8, target: 5.0, percentage: 96 }
-      },
-      monthly: {
-        period: 'December Performance',
-        casesWon: { current: 24, target: 25, percentage: 96 },
-        revenue: { current: '₹2.4L', target: '₹2.5L', percentage: 96 },
-        satisfaction: { current: 4.9, target: 5.0, percentage: 98 }
-      },
-      quarterly: {
-        period: 'Q4 2024',
-        casesWon: { current: 68, target: 75, percentage: 91 },
-        revenue: { current: '₹7.2L', target: '₹8L', percentage: 90 },
-        satisfaction: { current: 4.7, target: 5.0, percentage: 94 }
-      },
-      yearly: {
-        period: '2024 Annual',
-        casesWon: { current: 285, target: 300, percentage: 95 },
-        revenue: { current: '₹28L', target: '₹30L', percentage: 93 },
-        satisfaction: { current: 4.8, target: 5.0, percentage: 96 }
-      }
-    };
-    return data[goalPeriod];
   };
 
   const quickActions = [
@@ -340,7 +316,8 @@ export default function LawyerDashboard() {
       title: 'New Case', 
       icon: 'briefcase-plus', 
       gradient: colors.gradient.primary,
-      description: 'Create case'
+      description: 'Create case',
+      onPress: () => setShowAddCaseModal(true)
     },
     { 
       title: 'AI Research', 
@@ -366,11 +343,15 @@ export default function LawyerDashboard() {
   ];
 
   const handleAction = (screenName) => {
+    if (screenName) {
       navigation.navigate('InApp', { screen: screenName });
+    }
   };
 
   const handleStatCardPress = (stat) => {
+    if (stat.screen) {
       handleAction(stat.screen);
+    }
   };
 
   const headerOpacity = scrollY.interpolate({
@@ -379,7 +360,156 @@ export default function LawyerDashboard() {
     extrapolate: 'clamp',
   });
 
-  const currentGoalData = getGoalData();
+  // Simple Mini Chart Component
+  const MiniChart = ({ data, type = 'line' }) => {
+    if (!data || data.length === 0) {
+      return (
+        <View style={styles.chartPlaceholder}>
+          <Text style={styles.chartPlaceholderText}>No data available</Text>
+        </View>
+      );
+    }
+
+    const maxRevenue = Math.max(...data.map(d => d.revenue || 0), 1); // Prevent 0 max
+    const maxCases = Math.max(...data.map(d => d.cases || 0), 1); // Prevent 0 max
+    const chartHeight = 100;
+    const chartWidth = width - 80; // More padding for better alignment
+    const pointSpacing = chartWidth / (data.length);
+    return (
+      <View style={styles.chartContainer}>
+        <View style={styles.chartHeader}>
+          <Text style={styles.chartTitle}>Performance Trend (Last 5 Months)</Text>
+          <View style={styles.chartLegend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.secondary }]} />
+              <Text style={styles.legendText}>Revenue</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: colors.success }]} />
+              <Text style={styles.legendText}>Cases</Text>
+            </View>
+          </View>
+        </View>
+        
+        <View style={[styles.chart, { height: chartHeight, width: chartWidth, alignSelf: 'center' }]}>
+          {/* Background Grid Lines */}
+          <View style={styles.gridContainer}>
+            {[0.25, 0.5, 0.75, 1].map((fraction, index) => (
+              <View
+                key={`grid-${index}`}
+                style={[
+                  styles.gridLine,
+                  {
+                    top: chartHeight * (1 - fraction),
+                    width: chartWidth,
+                  }
+                ]}
+              />
+            ))}
+          </View>
+
+          {/* Revenue Line Path */}
+          {data.map((point, index) => {
+            if (index === data.length - 1) return null;
+            const nextPoint = data[index + 1];
+            
+            const x1 = index * pointSpacing;
+            const y1 = chartHeight - ((point.revenue / maxRevenue) * (chartHeight - 20)); // 20px padding from top
+            const x2 = (index + 1) * pointSpacing;
+            const y2 = chartHeight - ((nextPoint.revenue / maxRevenue) * (chartHeight - 20));
+            
+            const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
+            
+            return (
+              <View
+                key={`line-${index}`}
+                style={[
+                  styles.chartLine,
+                  {
+                    left: x1,
+                    top: y1,
+                    width: length,
+                    transform: [{ rotate: `${angle}deg` }],
+                    transformOrigin: '0 50%',
+                  }
+                ]}
+              />
+            );
+          })}
+          
+          {/* Revenue Data Points */}
+          {data.map((point, index) => {
+            const x = index * pointSpacing;
+            const y = chartHeight - ((point.revenue / maxRevenue) * (chartHeight - 20));
+            
+            return (
+              <View
+                key={`point-${index}`}
+                style={[
+                  styles.chartPoint,
+                  {
+                    left: x - 6, // Center the point
+                    top: y - 6,
+                  }
+                ]}
+              >
+                {/* Value label on hover/touch */}
+                <View style={styles.pointValue}>
+                  <Text style={styles.pointValueText}>₹{point.revenue.toFixed(1)}L</Text>
+                </View>
+              </View>
+            );
+          })}
+          
+          {/* Cases Bars */}
+          {data.map((point, index) => {
+            const barHeight = (point.cases / maxCases) * (chartHeight * 0.4); // Max 40% of chart height
+            const x = index * pointSpacing;
+            
+            return (
+              <View
+                key={`bar-${index}`}
+                style={[
+                  styles.chartBar,
+                  {
+                    left: x - 12, // Center the bar
+                    bottom: 0,
+                    height: barHeight,
+                    width: 24, // Fixed width for bars
+                  }
+                ]}
+              />
+            );
+          })}
+        </View>
+        
+        {/* X-axis labels with better spacing */}
+        <View style={[styles.chartLabels, { width: chartWidth, alignSelf: 'center' }]}>
+          {data.map((point, index) => (
+            <View key={`label-${index}`} style={styles.chartLabelContainer}>
+              <Text style={styles.chartLabel}>{point.month}</Text>
+              <Text style={styles.chartSubLabel}>{point.cases} cases</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <LinearGradient
+          colors={colors.gradient.primary}
+          style={styles.loadingGradient}
+        >
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Loading your dashboard...</Text>
+        </LinearGradient>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -446,6 +576,23 @@ export default function LawyerDashboard() {
                   <Badge size={8} style={styles.notificationBadge} />
                 </LinearGradient>
               </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.actionButton} 
+                activeOpacity={0.8}
+                onPress={handleRefresh}
+              >
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.1)']}
+                  style={styles.actionButtonGradient}
+                >
+                  <MaterialCommunityIcons 
+                    name="refresh" 
+                    size={20} 
+                    color="white" 
+                  />
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
         </LinearGradient>
@@ -482,7 +629,9 @@ export default function LawyerDashboard() {
                       <MaterialCommunityIcons name="currency-inr" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>{totalActiveValue}</Text>
+                  <Text style={styles.summaryValue}>
+                    ₹{(dashboardMetrics.totalActiveValue / 100000).toFixed(1)}L
+                  </Text>
                   <Text style={styles.summaryLabel}>Active Value</Text>
                 </View>
                 
@@ -497,7 +646,7 @@ export default function LawyerDashboard() {
                       <MaterialCommunityIcons name="account-group" size={16} color="white" />
                     </LinearGradient>
                   </View>
-                  <Text style={styles.summaryValue}>{activeClientsCount}</Text>
+                  <Text style={styles.summaryValue}>{dashboardMetrics.activeClientsCount}</Text>
                   <Text style={styles.summaryLabel}>Active Clients</Text>
                 </View>
               </View>
@@ -515,8 +664,10 @@ export default function LawyerDashboard() {
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
       >
-        {/* Premium Statistics without View Details button */}
+        {/* Premium Statistics */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderSimple}>
             <Text style={styles.sectionTitle}>Performance Analytics</Text>
@@ -572,35 +723,10 @@ export default function LawyerDashboard() {
           </ScrollView>
         </View>
 
-        {/* Enhanced Goal Progression Section */}
+        {/* Dynamic Performance Chart */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Goal Progression</Text>
-            <View style={styles.goalPeriodToggle}>
-              {goalPeriods.map((period) => (
-                <TouchableOpacity
-                  key={period.key}
-                  style={[
-                    styles.periodButton,
-                    goalPeriod === period.key && styles.periodButtonActive
-                  ]}
-                  onPress={() => setGoalPeriod(period.key)}
-                  activeOpacity={0.8}
-                >
-                  <MaterialCommunityIcons 
-                    name={period.icon} 
-                    size={14} 
-                    color={goalPeriod === period.key ? colors.secondary : colors.textSecondary} 
-                  />
-                  <Text style={[
-                    styles.periodButtonText,
-                    goalPeriod === period.key && styles.periodButtonTextActive
-                  ]}>
-                    {period.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={styles.sectionTitle}>Performance Trends</Text>
           </View>
           
           <Surface style={styles.progressCard}>
@@ -608,67 +734,20 @@ export default function LawyerDashboard() {
               colors={['rgba(139, 92, 246, 0.05)', 'rgba(59, 130, 246, 0.05)']}
               style={styles.progressBackground}
             >
-              <View style={styles.progressHeader}>
-                <Text style={styles.progressTitle}>{currentGoalData.period}</Text>
-                <View style={styles.performanceIndicator}>
-                  <Text style={styles.performanceText}>
-                    {currentGoalData.casesWon.percentage >= 95 ? 'Excellent' : 
-                     currentGoalData.casesWon.percentage >= 85 ? 'Good' : 'Average'}
-                  </Text>
-                  <MaterialCommunityIcons name="star" size={16} color={colors.secondary} />
-                </View>
-              </View>
+              <MiniChart data={chartData} type="line" />
               
-              <View style={styles.progressGrid}>
-                <View style={styles.progressItem}>
-                  <View style={styles.progressLabelContainer}>
-                    <Text style={styles.progressLabel}>Cases Won</Text>
-                    <Text style={styles.progressValue}>
-                      {currentGoalData.casesWon.current}/{currentGoalData.casesWon.target}
-                    </Text>
-                  </View>
-                  <View style={styles.progressBarContainer}>
-                    <ProgressBar 
-                      progress={currentGoalData.casesWon.percentage / 100} 
-                      color={colors.success}
-                      style={styles.modernProgressBar}
-                    />
-                    <Text style={styles.progressPercent}>{currentGoalData.casesWon.percentage}%</Text>
-                  </View>
+              <View style={styles.metricsRow}>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricValue}>{dashboardMetrics.successRate}%</Text>
+                  <Text style={styles.metricLabel}>Success Rate</Text>
                 </View>
-                
-                <View style={styles.progressItem}>
-                  <View style={styles.progressLabelContainer}>
-                    <Text style={styles.progressLabel}>Revenue Target</Text>
-                    <Text style={styles.progressValue}>
-                      {currentGoalData.revenue.current}/{currentGoalData.revenue.target}
-                    </Text>
-                  </View>
-                  <View style={styles.progressBarContainer}>
-                    <ProgressBar 
-                      progress={currentGoalData.revenue.percentage / 100} 
-                      color={colors.secondary}
-                      style={styles.modernProgressBar}
-                    />
-                    <Text style={styles.progressPercent}>{currentGoalData.revenue.percentage}%</Text>
-                  </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricValue}>{dashboardMetrics.completedTasks}/{dashboardMetrics.totalTasks}</Text>
+                  <Text style={styles.metricLabel}>Tasks Done</Text>
                 </View>
-                
-                <View style={styles.progressItem}>
-                  <View style={styles.progressLabelContainer}>
-                    <Text style={styles.progressLabel}>Client Satisfaction</Text>
-                    <Text style={styles.progressValue}>
-                      {currentGoalData.satisfaction.current}/5.0
-                    </Text>
-                  </View>
-                  <View style={styles.progressBarContainer}>
-                    <ProgressBar 
-                      progress={currentGoalData.satisfaction.percentage / 100} 
-                      color={colors.tertiary}
-                      style={styles.modernProgressBar}
-                    />
-                    <Text style={styles.progressPercent}>{currentGoalData.satisfaction.percentage}%</Text>
-                  </View>
+                <View style={styles.metricItem}>
+                  <Text style={styles.metricValue}>₹{dashboardMetrics.monthlyRevenue.toFixed(1)}L</Text>
+                  <Text style={styles.metricLabel}>Monthly Rev</Text>
                 </View>
               </View>
             </LinearGradient>
@@ -732,83 +811,98 @@ export default function LawyerDashboard() {
           </ScrollView>
           
           {/* Filtered Tasks */}
-          {getFilteredTasks().map((task, index) => (
-            <TouchableOpacity key={task.id} activeOpacity={0.95}>
-              <Surface style={styles.premiumTaskCard}>
-                <View style={styles.taskCardContent}>
-                  <View style={styles.taskMainInfo}>
-                    <View style={styles.taskIconSection}>
-                      <LinearGradient
-                        colors={getPriorityGradient(task.priority)}
-                        style={styles.taskIconContainer}
-                      >
-                        <MaterialCommunityIcons 
-                          name={getTaskIcon(task.type)} 
-                          size={20} 
-                          color="white" 
-                        />
-                      </LinearGradient>
-                    </View>
-                    
-                    <View style={styles.taskDetails}>
-                      <View style={styles.taskTitleRow}>
-                        <Text style={styles.premiumTaskTitle}>{task.title}</Text>
-                        <View style={styles.taskValueContainer}>
-                          <Text style={styles.taskValue}>{task.value}</Text>
-                        </View>
-                      </View>
-                      
-                      <Text style={styles.taskClient}>{task.client}</Text>
-                      
-                      <View style={styles.taskMetaRow}>
-                        <Chip 
-                          mode="flat"
-                          compact
-                          style={[
-                            styles.categoryChip,
-                            { backgroundColor: colors.primary + '10' }
-                          ]}
-                          textStyle={styles.categoryChipText}
+          {getFilteredTasks().length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="check-circle" size={48} color={colors.success} />
+              <Text style={styles.emptyStateText}>All tasks completed!</Text>
+              <Text style={styles.emptyStateSubtext}>Great job staying on top of your priorities</Text>
+            </View>
+          ) : (
+            getFilteredTasks().map((task, index) => (
+              <TouchableOpacity key={task.id} activeOpacity={0.95}>
+                <Surface style={styles.premiumTaskCard}>
+                  <View style={styles.taskCardContent}>
+                    <View style={styles.taskMainInfo}>
+                      <View style={styles.taskIconSection}>
+                        <LinearGradient
+                          colors={getPriorityGradient(task.priority)}
+                          style={styles.taskIconContainer}
                         >
-                          {task.category}
-                        </Chip>
+                          <MaterialCommunityIcons 
+                            name={getTaskIcon(task.category)} 
+                            size={20} 
+                            color="white" 
+                          />
+                        </LinearGradient>
+                      </View>
+                      
+                      <View style={styles.taskDetails}>
+                        <View style={styles.taskTitleRow}>
+                          <Text style={styles.premiumTaskTitle}>{task.title}</Text>
+                          <View style={styles.taskValueContainer}>
+                            <Text style={styles.taskValue}>
+                              ₹{(parseFloat(String(task.value || "0").replace(/[₹,]/g, "")) / 100000).toFixed(1)}L
+                            </Text>
+                          </View>
+                        </View>
                         
-                        <View style={styles.urgencyIndicator}>
-                          <View style={[
-                            styles.urgencyDot,
-                            { backgroundColor: getUrgencyColor(task.urgency) }
-                          ]} />
-                          <Text style={styles.urgencyText}>{task.urgency}</Text>
+                        <Text style={styles.taskClient}>{task.client}</Text>
+                        
+                        <View style={styles.taskMetaRow}>
+                          <Chip 
+                            mode="flat"
+                            compact
+                            style={[
+                              styles.categoryChip,
+                              { backgroundColor: colors.primary + '10' }
+                            ]}
+                            textStyle={styles.categoryChipText}
+                          >
+                            {task.category || 'General'}
+                          </Chip>
+                          
+                          <View style={styles.urgencyIndicator}>
+                            <View style={[
+                              styles.urgencyDot,
+                              { backgroundColor: getUrgencyColor(task.urgency) }
+                            ]} />
+                            <Text style={styles.urgencyText}>{task.urgency}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    
+                    <View style={styles.taskFooter}>
+                      <View style={styles.deadlineSection}>
+                        <MaterialCommunityIcons 
+                          name={task.deadline === 'Overdue' ? 'alert-circle' : 'clock-outline'} 
+                          size={14} 
+                          color={task.deadline === 'Overdue' ? colors.error : colors.textSecondary} 
+                        />
+                        <Text style={[
+                          styles.deadlineText,
+                          task.deadline === 'Overdue' && { color: colors.error }
+                        ]}>
+                          {task.deadline === 'Overdue' ? 'Overdue' : `Due in ${task.deadline}`}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.progressSection}>
+                        <Text style={styles.progressLabel}>{task.progress}% Complete</Text>
+                        <View style={styles.miniProgressContainer}>
+                          <ProgressBar 
+                            progress={task.progress / 100} 
+                            color={colors.primary}
+                            style={styles.miniProgressBar}
+                          />
                         </View>
                       </View>
                     </View>
                   </View>
-                  
-                  <View style={styles.taskFooter}>
-                    <View style={styles.deadlineSection}>
-                      <MaterialCommunityIcons 
-                        name="clock-outline" 
-                        size={14} 
-                        color={colors.textSecondary} 
-                      />
-                      <Text style={styles.deadlineText}>Due in {task.deadline}</Text>
-                    </View>
-                    
-                    <View style={styles.progressSection}>
-                      <Text style={styles.progressLabel}>{task.progress}% Complete</Text>
-                      <View style={styles.miniProgressContainer}>
-                        <ProgressBar 
-                          progress={task.progress / 100} 
-                          color={colors.primary}
-                          style={styles.miniProgressBar}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                </View>
-              </Surface>
-            </TouchableOpacity>
-          ))}
+                </Surface>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Futuristic Quick Actions */}
@@ -819,7 +913,7 @@ export default function LawyerDashboard() {
               <TouchableOpacity 
                 key={index} 
                 style={styles.quickActionWrapper}
-                onPress={() => handleAction(action.screen)}
+                onPress={action.onPress || (() => handleAction(action.screen))}
                 activeOpacity={0.9}
               >
                 <LinearGradient
@@ -857,27 +951,30 @@ const getPriorityGradient = (priority) => {
     case 'high': return ['#F59E0B', '#D97706'];
     case 'medium': return ['#3B82F6', '#2563EB'];
     case 'low': return ['#10B981', '#059669'];
-    default: return colors.gradient.primary;
+    default: return ['#64748B', '#475569'];
   }
 };
 
-const getTaskIcon = (type) => {
-  switch (type) {
+const getTaskIcon = (category) => {
+  switch (category) {
+    case 'research': return 'magnify';
     case 'filing': return 'file-document-edit';
     case 'review': return 'magnify-scan';
     case 'audit': return 'shield-check';
     case 'negotiation': return 'handshake';
-    case 'application': return 'file-document-edit-outline'; // valid icon name
-    default: return 'briefcase';
+    case 'application': return 'file-plus';
+    case 'other': return 'briefcase';
+    default: return 'clipboard-text';
   }
 };
 
 const getUrgencyColor = (urgency) => {
   switch (urgency) {
-    case 'high': return colors.error;
-    case 'medium': return colors.warning;
-    case 'low': return colors.success;
-    default: return colors.textSecondary;
+    case 'critical': return '#EF4444';
+    case 'high': return '#F59E0B';
+    case 'medium': return '#3B82F6';
+    case 'low': return '#10B981';
+    default: return '#64748B';
   }
 };
 
@@ -885,6 +982,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
   },
   headerContainer: {
     position: 'relative',
@@ -1087,38 +1201,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     letterSpacing: -0.5,
   },
-  goalPeriodToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 12,
-    padding: 4,
-  },
-  periodButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginHorizontal: 2,
-  },
-  periodButtonActive: {
-    backgroundColor: colors.secondary,
-    elevation: 2,
-    shadowColor: colors.secondary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  periodButtonText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginLeft: 4,
-  },
-  periodButtonTextActive: {
-    color: 'white',
-    fontWeight: '700',
-  },
   filterScrollView: {
     marginBottom: 20,
   },
@@ -1260,72 +1342,193 @@ const styles = StyleSheet.create({
   progressBackground: {
     padding: 24,
   },
-  progressHeader: {
+  chartContainer: {
+    marginBottom: 24,
+  },
+  chartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
-  progressTitle: {
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  chartLegend: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  legendText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  chart: {
+    position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 8,
+    elevation: 2,
+    shadowColor: 'rgba(0, 0, 0, 0.1)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  gridContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  gridLine: {
+    position: 'absolute',
+    height: 1,
+    backgroundColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  chartLine: {
+    position: 'absolute',
+    height: 3,
+    backgroundColor: colors.secondary,
+    borderRadius: 1.5,
+    elevation: 1,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    marginLeft: 35, // Adjust to align with chart points
+  },
+  chartPoint: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.secondary,
+    borderWidth: 3,
+    borderColor: 'white',
+    elevation: 3,
+    shadowColor: colors.secondary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    marginLeft: 35,
+  },
+  pointValue: {
+    position: 'absolute',
+    top: -24,
+    left: -15,
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    minWidth: 30,
+    alignItems: 'center',
+  },
+  pointValueText: {
+    fontSize: 8,
+    color: 'white',
+    fontWeight: '700',
+  },
+  chartBar: {
+    position: 'absolute',
+    backgroundColor: colors.success,
+    borderRadius: 6,
+    opacity: 0.8,
+    elevation: 1,
+    shadowColor: colors.success,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    marginLeft: 35, // Adjust to align with chart bars
+  },
+  chartLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  chartLabelContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  chartLabel: {
+    fontSize: 11,
+    color: colors.text,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  chartSubLabel: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  chartPlaceholder: {
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 8,
+  },
+  chartPlaceholderText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  metricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  metricItem: {
+    alignItems: 'center',
+  },
+  metricValue: {
     fontSize: 18,
     fontWeight: '800',
     color: colors.text,
+    marginBottom: 4,
   },
-  performanceIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.secondary + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  performanceText: {
-    color: colors.secondary,
-    fontSize: 12,
-    fontWeight: '700',
-    marginRight: 4,
-  },
-  progressGrid: {
-    gap: 20,
-  },
-  progressItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  progressLabelContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: colors.text,
+  metricLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
-  progressValue: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '700',
-  },
-  progressBarContainer: {
-    flexDirection: 'row',
+  emptyState: {
     alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
   },
-  modernProgressBar: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-  },
-  progressPercent: {
-    fontSize: 12,
-    color: colors.text,
+  emptyStateText: {
+    fontSize: 18,
     fontWeight: '700',
-    marginLeft: 12,
-    minWidth: 35,
+    color: colors.text,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
   },
   premiumTaskCard: {
     marginBottom: 16,
@@ -1446,6 +1649,12 @@ const styles = StyleSheet.create({
   progressSection: {
     alignItems: 'flex-end',
     minWidth: 80,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   miniProgressContainer: {
     width: 60,
