@@ -8,7 +8,9 @@ import {
   StatusBar,
   Animated,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { 
   Card, 
@@ -64,6 +66,7 @@ const colors = {
 
 export default function LawyerDashboard() {
   const { user } = useSelector((state) => state.auth);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const dispatch = useDispatch();
   const [scrollY] = useState(new Animated.Value(0));
   const navigation = useNavigation();
@@ -92,13 +95,14 @@ export default function LawyerDashboard() {
     );
 
     const totalActiveValue = cases
-      .filter(c => c.status === "active")
-      .reduce((total, c) => {
-        const caseValue = parseFloat(
-          String(c.value || "0").replace(/[₹,]/g, "")
-        );
-        return total + (isNaN(caseValue) ? 0 : caseValue);
-      }, 0);
+    .filter(c => c.status === "active" && user?.uid === c.lawyerId)
+    .reduce((total, c) => {
+      const caseValue = parseFloat(
+        String(c.value || "0").replace(/[₹,]/g, "")
+      );
+      return total + (isNaN(caseValue) ? 0 : caseValue);
+    }, 0);
+
 
     const allSubtasks = cases.flatMap(c => Array.isArray(c.subtasks) ? c.subtasks : []);
     const completedTasks = allSubtasks.filter(st => st.status === 'completed').length;
@@ -114,6 +118,474 @@ export default function LawyerDashboard() {
       monthlyRevenue: totalActiveValue / 100000 // Convert to lakhs
     };
   }, [cases]);
+
+  const CalendarModal = () => {
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [taskPriority, setTaskPriority] = useState('medium');
+  const [selectedCase, setSelectedCase] = useState(null);
+
+  // Function to get all events/tasks for a specific date
+  const getEventsForDate = (date) => {
+    const events = [];
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Add case hearings
+    cases.forEach(caseItem => {
+      if (caseItem.nextHearing === dateStr) {
+        events.push({
+          id: `hearing-${caseItem.id}`,
+          type: 'hearing',
+          title: `Hearing: ${caseItem.title}`,
+          caseNumber: caseItem.caseNumber,
+          priority: caseItem.priority,
+          time: '10:00 AM', // Default time, can be enhanced
+          caseId: caseItem.id
+        });
+      }
+      
+      // Add subtasks with deadlines
+      if (caseItem.subtasks) {
+        caseItem.subtasks.forEach(subtask => {
+          if (subtask.dueDate === dateStr && !subtask.completed) {
+            events.push({
+              id: `subtask-${subtask.id}`,
+              type: 'subtask',
+              title: subtask.title,
+              caseNumber: caseItem.caseNumber,
+              priority: subtask.priority || caseItem.priority,
+              caseId: caseItem.id
+            });
+          }
+        });
+      }
+    });
+    
+    return events;
+  };
+
+  // Function to check if a date has events
+  const hasEvents = (day, month, year) => {
+    const date = new Date(year, month, day);
+    return getEventsForDate(date).length > 0;
+  };
+
+  // Function to get event indicators for a date
+  const getEventIndicators = (day, month, year) => {
+    const date = new Date(year, month, day);
+    const events = getEventsForDate(date);
+    
+    const indicators = {
+      hasHearing: events.some(e => e.type === 'hearing'),
+      hasHighPriority: events.some(e => e.priority === 'high' || e.priority === 'critical'),
+      hasSubtasks: events.some(e => e.type === 'subtask'),
+      count: events.length
+    };
+    
+    return indicators;
+  };
+
+  const handleCreateTask = () => {
+    // Your task creation logic here
+    console.log('Creating task:', {
+      title: taskTitle,
+      description: taskDescription,
+      priority: taskPriority,
+      dueDate: selectedDate,
+      caseId: selectedCase?.id
+    });
+    
+    // Reset form and close modal
+    setTaskTitle('');
+    setTaskDescription('');
+    setTaskPriority('medium');
+    setSelectedCase(null);
+    setShowCalendarModal(false);
+  };
+
+  // Custom Calendar Component
+  const CustomCalendar = () => {
+    const today = new Date();
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const firstDayWeekday = firstDayOfMonth.getDay();
+    const daysInMonth = lastDayOfMonth.getDate();
+    
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    const goToPreviousMonth = () => {
+      setCurrentMonth(new Date(year, month - 1, 1));
+    };
+    
+    const goToNextMonth = () => {
+      setCurrentMonth(new Date(year, month + 1, 1));
+    };
+    
+    const selectDate = (day) => {
+      const newDate = new Date(year, month, day);
+      setSelectedDate(newDate);
+    };
+    
+    const isSelected = (day) => {
+      return selectedDate.getDate() === day &&
+             selectedDate.getMonth() === month &&
+             selectedDate.getFullYear() === year;
+    };
+    
+    const isToday = (day) => {
+      return today.getDate() === day &&
+             today.getMonth() === month &&
+             today.getFullYear() === year;
+    };
+    
+    const isPastDate = (day) => {
+      const checkDate = new Date(year, month, day);
+      return checkDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    };
+    
+    // Generate calendar days
+    const calendarDays = [];
+    
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < firstDayWeekday; i++) {
+      calendarDays.push(null);
+    }
+    
+    // Add days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      calendarDays.push(day);
+    }
+    
+    return (
+      <View style={styles.calendarContainer}>
+        {/* Calendar Header */}
+        <View style={styles.calendarHeader}>
+          <TouchableOpacity onPress={goToPreviousMonth} style={styles.navButton}>
+            <MaterialCommunityIcons name="chevron-left" size={24} color={colors.primary} />
+          </TouchableOpacity>
+          
+          <Text style={styles.monthYearText}>
+            {monthNames[month]} {year}
+          </Text>
+          
+          <TouchableOpacity onPress={goToNextMonth} style={styles.navButton}>
+            <MaterialCommunityIcons name="chevron-right" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Day Names */}
+        <View style={styles.dayNamesRow}>
+          {dayNames.map((dayName) => (
+            <View key={dayName} style={styles.dayNameCell}>
+              <Text style={styles.dayNameText}>{dayName}</Text>
+            </View>
+          ))}
+        </View>
+        
+        {/* Calendar Grid */}
+        <View style={styles.calendarGrid}>
+          {Array.from({ length: Math.ceil(calendarDays.length / 7) }, (_, weekIndex) => (
+            <View key={weekIndex} style={styles.weekRow}>
+              {calendarDays.slice(weekIndex * 7, weekIndex * 7 + 7).map((day, dayIndex) => {
+                const indicators = day ? getEventIndicators(day, month, year) : null;
+                
+                return (
+                  <TouchableOpacity
+                    key={dayIndex}
+                    style={[
+                      styles.dayCell,
+                      day && isSelected(day) && styles.selectedDayCell,
+                      day && isToday(day) && !isSelected(day) && styles.todayDayCell,
+                    ]}
+                    onPress={() => day && !isPastDate(day) && selectDate(day)}
+                    disabled={!day || isPastDate(day)}
+                  >
+                    {day && (
+                      <>
+                        {isSelected(day) && (
+                          <LinearGradient
+                            colors={colors.gradient.primary}
+                            style={styles.selectedDayBackground}
+                          />
+                        )}
+                        <Text style={[
+                          styles.dayText,
+                          isSelected(day) && styles.selectedDayText,
+                          isToday(day) && !isSelected(day) && styles.todayDayText,
+                          isPastDate(day) && styles.pastDayText,
+                        ]}>
+                          {day}
+                        </Text>
+                        
+                        {/* Event Indicators */}
+                        {indicators && indicators.count > 0 && (
+                          <View style={styles.eventIndicatorsContainer}>
+                            {indicators.hasHearing && (
+                              <View style={[styles.eventIndicator, styles.hearingIndicator]} />
+                            )}
+                            {indicators.hasSubtasks && (
+                              <View style={[styles.eventIndicator, styles.subtaskIndicator]} />
+                            )}
+                            {indicators.hasHighPriority && (
+                              <View style={[styles.eventIndicator, styles.highPriorityIndicator]} />
+                            )}
+                            {indicators.count > 3 && (
+                              <Text style={styles.eventCountText}>+{indicators.count - 3}</Text>
+                            )}
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
+
+  // Events List Component for Selected Date
+  const EventsList = () => {
+    const events = getEventsForDate(selectedDate);
+    
+    if (events.length === 0) {
+      return (
+        <View style={styles.noEventsContainer}>
+          <MaterialCommunityIcons name="calendar-blank" size={32} color={colors.textTertiary} />
+          <Text style={styles.noEventsText}>No events scheduled for this date</Text>
+        </View>
+      );
+    }
+    
+    return (
+      <View style={styles.eventsListContainer}>
+        <Text style={styles.eventsListTitle}>
+          Events for {selectedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        </Text>
+        
+        {events.map((event) => (
+          <View key={event.id} style={styles.eventItem}>
+            <View style={styles.eventHeader}>
+              <View style={styles.eventTypeContainer}>
+                <MaterialCommunityIcons 
+                  name={event.type === 'hearing' ? 'gavel' : 'clipboard-text'} 
+                  size={16} 
+                  color={event.type === 'hearing' ? colors.warning : colors.info}
+                />
+                <Text style={[styles.eventTypeText, {
+                  color: event.type === 'hearing' ? colors.warning : colors.info
+                }]}>
+                  {event.type === 'hearing' ? 'Hearing' : 'Task'}
+                </Text>
+              </View>
+              
+              <View style={[
+                styles.priorityBadge,
+                { backgroundColor: getUrgencyColor(event.priority) + '15' }
+              ]}>
+                <Text style={[
+                  styles.priorityBadgeText,
+                  { color: getUrgencyColor(event.priority) }
+                ]}>
+                  {event.priority.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+            
+            <Text style={styles.eventTitle}>{event.title}</Text>
+            
+            <View style={styles.eventFooter}>
+              <Text style={styles.eventCaseNumber}>{event.caseNumber}</Text>
+              {event.time && (
+                <Text style={styles.eventTime}>{event.time}</Text>
+              )}
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  return (
+    <Modal
+      visible={showCalendarModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      transparent={false}
+      onRequestClose={() => setShowCalendarModal(false)}
+    >
+      <View style={styles.modalContainer}>
+        <LinearGradient
+          colors={colors.gradient.primary}
+          style={styles.modalHeader}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity 
+              onPress={() => setShowCalendarModal(false)}
+              style={styles.closeButton}
+            >
+              <MaterialCommunityIcons name="close" size={24} color="white" />
+            </TouchableOpacity>
+            
+            <Text style={styles.modalTitle}>Schedule Task</Text>
+            
+            <TouchableOpacity 
+              onPress={handleCreateTask}
+              style={styles.saveButton}
+              disabled={!taskTitle.trim()}
+            >
+              <Text style={[
+                styles.saveButtonText,
+                !taskTitle.trim() && { opacity: 0.5 }
+              ]}>
+                Create
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+
+        <ScrollView style={styles.modalContent}>
+          {/* Calendar Component */}
+          <Surface style={styles.calendarCard}>
+            <Text style={styles.sectionTitle}>Select Date & Time</Text>
+            
+            <CustomCalendar />
+            
+            <View style={styles.selectedDateInfo}>
+              <MaterialCommunityIcons name="calendar" size={20} color={colors.primary} />
+              <Text style={styles.selectedDateText}>
+                {selectedDate.toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </Text>
+            </View>
+            
+            {/* Events for Selected Date */}
+            <EventsList />
+          </Surface>
+
+          {/* Task Details */}
+          <Surface style={styles.taskCard}>
+            <Text style={styles.sectionTitle}>Task Details</Text>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Task Title *</Text>
+              <TextInput
+                style={styles.textInput}
+                value={taskTitle}
+                onChangeText={setTaskTitle}
+                placeholder="Enter task title..."
+                placeholderTextColor={colors.textTertiary}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                value={taskDescription}
+                onChangeText={setTaskDescription}
+                placeholder="Task description..."
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Priority</Text>
+              <View style={styles.priorityContainer}>
+                {['low', 'medium', 'high', 'critical'].map((priority) => (
+                  <TouchableOpacity
+                    key={priority}
+                    style={[
+                      styles.priorityChip,
+                      taskPriority === priority && styles.priorityChipActive,
+                      { backgroundColor: getUrgencyColor(priority) + '15' }
+                    ]}
+                    onPress={() => setTaskPriority(priority)}
+                  >
+                    <View style={[
+                      styles.priorityDot,
+                      { backgroundColor: getUrgencyColor(priority) }
+                    ]} />
+                    <Text style={[
+                      styles.priorityText,
+                      { color: getUrgencyColor(priority) },
+                      taskPriority === priority && styles.priorityTextActive
+                    ]}>
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Assign to Case (Optional)</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.casesContainer}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.caseChip,
+                    !selectedCase && styles.caseChipActive
+                  ]}
+                  onPress={() => setSelectedCase(null)}
+                >
+                  <Text style={[
+                    styles.caseChipText,
+                    !selectedCase && styles.caseChipTextActive
+                  ]}>
+                    General Task
+                  </Text>
+                </TouchableOpacity>
+                
+                {cases.slice(0, 5).map((caseItem) => (
+                  <TouchableOpacity
+                    key={caseItem.id}
+                    style={[
+                      styles.caseChip,
+                      selectedCase?.id === caseItem.id && styles.caseChipActive
+                    ]}
+                    onPress={() => setSelectedCase(caseItem)}
+                  >
+                    <Text style={[
+                      styles.caseChipText,
+                      selectedCase?.id === caseItem.id && styles.caseChipTextActive
+                    ]}>
+                      {caseItem.title.length > 20 
+                        ? caseItem.title.substring(0, 20) + '...' 
+                        : caseItem.title
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </Surface>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
 
   // Chart data generation based on actual case data
   const chartData = useMemo(() => {
@@ -142,6 +614,7 @@ export default function LawyerDashboard() {
     // Populate with actual case data
     cases.forEach(caseItem => {
       let caseDate;
+      let caseValue;
       if (caseItem.createdAt) {
         caseDate = new Date(caseItem.createdAt);
       } else {
@@ -149,11 +622,13 @@ export default function LawyerDashboard() {
         caseDate = new Date();
       }
 
+      caseValue = caseItem.lawyerId === user?.uid ? caseItem.value : 0;
+
       const monthKey = `${caseDate.getFullYear()}-${String(caseDate.getMonth() + 1).padStart(2, '0')}`;
       
       if (monthlyData[monthKey]) {
         monthlyData[monthKey].cases += 1;
-        monthlyData[monthKey].revenue += parseFloat(String(caseItem.value || "0").replace(/[₹,]/g, "")) / 100000;
+        monthlyData[monthKey].revenue += parseFloat(String(caseValue || "0").replace(/[₹,]/g, "")) / 100000;
         
         const subtasks = Array.isArray(caseItem.subtasks) ? caseItem.subtasks : [];
         const completedSubtasks = subtasks.filter(st => st.status === 'completed').length;
@@ -313,12 +788,12 @@ export default function LawyerDashboard() {
 
   const quickActions = [
     { 
-      title: 'New Case', 
-      icon: 'briefcase-plus', 
-      gradient: colors.gradient.primary,
-      description: 'Create case',
-      onPress: () => setShowAddCaseModal(true)
-    },
+    title: 'Calendar', 
+    icon: 'calendar-plus', 
+    gradient: colors.gradient.primary,
+    description: 'Schedule tasks',
+    onPress: () => setShowCalendarModal(true) // Add this state
+  },
     { 
       title: 'AI Research', 
       icon: 'robot-excited', 
@@ -937,7 +1412,7 @@ export default function LawyerDashboard() {
             ))}
           </View>
         </View>
-
+        <CalendarModal/>
         <View style={styles.bottomSpacing} />
       </Animated.ScrollView>
     </View>
@@ -1711,5 +2186,383 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 40,
+  },
+  eventIndicatorsContainer: {
+    position: 'absolute',
+    bottom: 2,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eventIndicator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginHorizontal: 1,
+  },
+  hearingIndicator: {
+    backgroundColor: '#FFA500', // Orange for hearings
+  },
+  subtaskIndicator: {
+    backgroundColor: '#2196F3', // Blue for subtasks
+  },
+  highPriorityIndicator: {
+    backgroundColor: '#F44336', // Red for high priority
+  },
+  eventCountText: {
+    fontSize: 8,
+    color: colors.textTertiary,
+    marginLeft: 2,
+  },
+  
+  // Events List
+  eventsListContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  eventsListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 12,
+  },
+  noEventsContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 16,
+  },
+  noEventsText: {
+    fontSize: 14,
+    color: colors.textTertiary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  
+  // Event Item
+  eventItem: {
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  eventHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  eventTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  eventTypeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
+    textTransform: 'uppercase',
+  },
+  priorityBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  priorityBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  eventTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.textPrimary,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  eventFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  eventCaseNumber: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  eventTime: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  
+  // Enhanced Calendar Day Cell for better event visibility
+  dayCell: {
+    flex: 1,
+    height: 45, // Increased height to accommodate indicators
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 1,
+    borderRadius: 8,
+    position: 'relative',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    paddingTop: StatusBar.currentHeight + 20 || 44,
+    paddingBottom: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: 'white',
+  },
+  saveButton: {
+    backgroundColor: colors.secondary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 24,
+  },
+  calendarCard: {
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 20,
+    elevation: 4,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
+  taskCard: {
+    borderRadius: 20,
+    padding: 24,
+    elevation: 4,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 20,
+  },
+  
+  // Custom Calendar Styles
+  calendarContainer: {
+    backgroundColor: 'transparent',
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 10,
+  },
+  navButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary + '10',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  monthYearText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  dayNamesRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  dayNameCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dayNameText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  calendarGrid: {
+    backgroundColor: 'transparent',
+  },
+  weekRow: {
+    flexDirection: 'row',
+  },
+  dayCell: {
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  selectedDayBackground: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  selectedDayCell: {
+    // Additional styling handled by gradient background
+  },
+  todayDayCell: {
+    backgroundColor: colors.secondary + '20',
+    borderRadius: 18,
+    width: 36,
+    height: 36,
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    zIndex: 1,
+  },
+  selectedDayText: {
+    color: 'white',
+    fontWeight: '700',
+  },
+  todayDayText: {
+    color: colors.secondary,
+    fontWeight: '700',
+  },
+  pastDayText: {
+    color: colors.textTertiary,
+    opacity: 0.5,
+  },
+  
+  selectedDateInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.primary + '10',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  selectedDateText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+    marginLeft: 8,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: colors.textTertiary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
+  priorityContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  priorityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  priorityChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '20',
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  priorityText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  priorityTextActive: {
+    color: colors.primary,
+  },
+  casesContainer: {
+    gap: 12,
+    paddingRight: 24,
+  },
+  caseChip: {
+    backgroundColor: colors.surfaceVariant,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  caseChipActive: {
+    backgroundColor: colors.primary + '15',
+    borderColor: colors.primary,
+  },
+  caseChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  caseChipTextActive: {
+    color: colors.primary,
   },
 });

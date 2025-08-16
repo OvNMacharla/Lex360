@@ -12,7 +12,8 @@ import {
   Modal,
   FlatList,
   Alert,
-  Platform
+  Platform,
+  ActivityIndicator
 } from 'react-native';
 import {
   Avatar,
@@ -150,6 +151,7 @@ export default function CaseManagement({ navigation }) {
     const [snackbar, setSnackbar] = useState({ visible: false, text: '' });
     const [menuVisibleFor, setMenuVisibleFor] = useState(null);
     const scrollY = useRef(new Animated.Value(0)).current;
+    const [loading, setLoading] = useState(true);
   
     // Enhanced modals state
     const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
@@ -183,19 +185,21 @@ export default function CaseManagement({ navigation }) {
     // Memoized fetch function to prevent re-renders
     const fetchCases = useCallback(async () => {
       if (!user?.uid || !user?.role) return;
+      setLoading(true);
       
       try {
         const [casesResult, usersResult] = await Promise.all([
           dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap(),
           dispatch(getAllUsers()).unwrap()
         ]);
-        
         setCases(casesResult);
         setUsers(usersResult);
       } catch (error) {
         console.error('Failed to fetch cases:', error);
+
         Alert.alert('Error', 'Failed to fetch cases');
       }
+      setLoading(false);
     }, [dispatch, user?.uid, user?.role]);
   
     // Effect with proper dependencies
@@ -542,7 +546,7 @@ export default function CaseManagement({ navigation }) {
       { id: 'team', label: 'Team', icon: 'account-group-outline' }
     ];
 
-    const canAddContent = user?.role === 'lawyer' || user?.role === 'admin';
+    const canAddContent = user?.uid === selectedCase.lawyerId;
 
     return (
       <Modal visible={showCaseDetailsModal} animationType="slide" statusBarTranslucent>
@@ -732,10 +736,10 @@ export default function CaseManagement({ navigation }) {
                       </View>
                     </View>
                     
-                    <View style={styles.detailRow}>
+                    {canAddContent&&<View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Case Value</Text>
                       <Text style={[styles.detailValue, styles.valueText]}>{selectedCase.value}</Text>
-                    </View>
+                    </View>}
                     
                     <View style={styles.detailRow}>
                       <Text style={styles.detailLabel}>Next Hearing</Text>
@@ -887,14 +891,12 @@ export default function CaseManagement({ navigation }) {
                 <View style={styles.tabContent}>
                   <View style={styles.sectionHeader}>
                     <Text style={styles.sectionTitle}>Subtasks ({selectedCase.subtasks?.length || 0})</Text>
-                    {canAddContent && (
                       <TouchableOpacity 
                         style={styles.addButton}
                         onPress={() => setShowAddSubtaskModal(true)}
                       >
                         <MaterialCommunityIcons name="plus" size={20} color="white" />
                       </TouchableOpacity>
-                    )}
                   </View>
 
                   {selectedCase.subtasks?.length > 0 ? (
@@ -2291,10 +2293,10 @@ export default function CaseManagement({ navigation }) {
                 </Chip>
               </View>
 
-              <View style={styles.valueContainer}>
+              {(item?.lawyerId === user?.uid) && <View style={styles.valueContainer}>
                 <Text style={styles.caseValue}>{item.value || item.amount || 'N/A'}</Text>
                 <MaterialCommunityIcons name="trending-up" size={14} color={colors.success} />
-              </View>
+              </View>}
             </View>
 
             <View style={styles.progressSection}>
@@ -2410,7 +2412,11 @@ export default function CaseManagement({ navigation }) {
               <View style={styles.statDivider} />
               <View style={styles.statItem}>
                 <Text style={styles.statValue}>
-                  ₹{Math.round(cases.reduce((s,c)=>s+parseCurrencyToNumber(c.value),0)/100000)}L
+                  ₹{Math.round(
+                    cases
+                      .filter(c => user?.uid === c.lawyerId) // only include matching clientId
+                      .reduce((s, c) => s + parseCurrencyToNumber(c.value), 0) / 100000
+                    )}L
                 </Text>
                 <Text style={styles.statLabel}>Total Value</Text>
               </View>
@@ -2450,6 +2456,16 @@ export default function CaseManagement({ navigation }) {
         </Surface>
       </Animated.View>
 
+
+            {loading ? <View>
+              <LinearGradient
+                colors={colors.gradient.glass}
+                style={styles.loadingGradient}
+              >
+                <ActivityIndicator size="large" color="black" />
+              </LinearGradient>
+            </View>: 
+          
       <FlatList
         data={filteredCases}
         key={viewMode} 
@@ -2471,7 +2487,7 @@ export default function CaseManagement({ navigation }) {
             <Text style={styles.emptyStateText}>Try adjusting your search or filters</Text>
           </View>
         )}
-      />
+      /> }
 
       <FAB 
         style={[styles.fab, { backgroundColor: colors.secondary }]} 

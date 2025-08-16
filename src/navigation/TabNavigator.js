@@ -10,18 +10,19 @@ import {
   TouchableOpacity, 
   Animated,
   StatusBar,
-  Dimensions
+  Dimensions,
+  ActivityIndicator
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Import screens (you'll need to create these)
+// Import screens
 import FeedScreen from '../screens/shared/FeedScreen';
 import ConnectionsScreen from '../screens/shared/ConnectionsScreen';
 import ChatScreen from '../screens/shared/ChatScreen';
 import ProfileScreen from '../screens/shared/ProfileScreen';
-// import JobsScreen from '../screens/shared/JobsScreen';
 import NotificationsScreen from '../screens/shared/NotificationsScreen';
+import ClientDashboardScreen from '../screens/client/ClientDashboard'; // Add this import
 
 import { SCREEN_NAMES, USER_ROLES } from '../utils/constants';
 
@@ -55,8 +56,40 @@ const colors = {
 const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
-  const { user } = useSelector((state) => state.auth);
+  const { user, isLoading, isAuthenticated } = useSelector((state) => state.auth);
   const isDarkMode = useSelector((state) => state.theme.isDarkMode);
+
+  // Check if user is a client
+  const isClient = user?.role === USER_ROLES.CLIENT;
+  const isLawyer = user?.role === USER_ROLES.LAWYER;
+
+  // Loading component for smooth transitions
+  const LoadingScreen = () => (
+    <View style={[styles.loadingContainer, { 
+      backgroundColor: isDarkMode ? '#0F0F23' : '#FAFBFF' 
+    }]}>
+      <ActivityIndicator 
+        size="large" 
+        color={colors.linkedin} 
+        style={{ marginBottom: 16 }}
+      />
+      <Text style={[styles.loadingText, { 
+        color: isDarkMode ? '#FFFFFF' : '#0F172A' 
+      }]}>
+        Loading Dashboard...
+      </Text>
+    </View>
+  );
+
+  // Show loading while authentication state is being determined
+  if (isLoading || (isAuthenticated && !user?.role)) {
+    return <LoadingScreen />;
+  }
+
+  // If not authenticated, return null (should be handled by auth navigator)
+  if (!isAuthenticated || !user) {
+    return null;
+  }
 
   // Enhanced Tab Icon Component with premium animations
   const TabBarIcon = ({ focused, iconName, label, size = 22, badgeCount = 0 }) => {
@@ -188,24 +221,24 @@ export default function TabNavigator() {
                 iconName = isFocused ? 'home' : 'home-outline';
                 displayLabel = 'Feed';
                 break;
+              case SCREEN_NAMES.CLIENT_DASHBOARD:
+                iconName = isFocused ? 'view-dashboard' : 'view-dashboard-outline';
+                displayLabel = 'Dashboard';
+                break;
               case SCREEN_NAMES.CONNECTIONS:
                 iconName = isFocused ? 'account-group' : 'account-group-outline';
                 displayLabel = 'Network';
-                badgeCount = 3; // New connection requests
+                badgeCount = 3;
                 break;
-              // case SCREEN_NAMES.JOBS:
-              //   iconName = isFocused ? 'briefcase' : 'briefcase-outline';
-              //   displayLabel = user?.role === USER_ROLES.LAWYER ? 'Cases' : 'Jobs';
-              //   break;
               case SCREEN_NAMES.CHAT:
                 iconName = isFocused ? 'message' : 'message-outline';
                 displayLabel = 'Messages';
-                badgeCount = 5; // Unread messages
+                badgeCount = 5;
                 break;
               case SCREEN_NAMES.NOTIFICATIONS:
                 iconName = isFocused ? 'bell' : 'bell-outline';
                 displayLabel = 'Alerts';
-                badgeCount = 12; // Unread notifications
+                badgeCount = 12;
                 break;
               case SCREEN_NAMES.PROFILE:
                 iconName = isFocused ? 'account-circle' : 'account-circle-outline';
@@ -261,6 +294,95 @@ export default function TabNavigator() {
     </View>
   );
 
+  // Client-only navigation (no tabs needed - single screen)
+  if (isClient) {
+    return (
+      <>
+        <StatusBar 
+          barStyle={isDarkMode ? "light-content" : "dark-content"} 
+          backgroundColor="transparent" 
+          translucent 
+        />
+        
+        {/* Direct render of ClientDashboard without tabs */}
+        <ClientDashboardScreen />
+      </>
+    );
+  }
+
+  // Lawyer navigation (full access)
+  if (isLawyer) {
+    return (
+      <>
+        <StatusBar 
+          barStyle={isDarkMode ? "light-content" : "dark-content"} 
+          backgroundColor="transparent" 
+          translucent 
+        />
+        
+        <Tab.Navigator
+          tabBar={(props) => <CustomTabBar {...props} />}
+          screenOptions={{
+            headerShown: false,
+            tabBarHideOnKeyboard: true,
+          }}
+          initialRouteName={SCREEN_NAMES.FEED}
+        >
+          {/* Feed/Home Screen */}
+          <Tab.Screen
+            name={SCREEN_NAMES.FEED}
+            component={FeedScreen}
+            options={{
+              title: 'Feed',
+              tabBarLabel: 'Feed',
+            }}
+          />
+
+          {/* Network/Connections Screen */}
+          <Tab.Screen
+            name={SCREEN_NAMES.CONNECTIONS}
+            component={ConnectionsScreen}
+            options={{
+              title: 'Network',
+              tabBarLabel: 'Network',
+            }}
+          />
+
+          {/* Messages/Chat Screen */}
+          <Tab.Screen
+            name={SCREEN_NAMES.CHAT}
+            component={ChatScreen}
+            options={{
+              title: 'Messages',
+              tabBarLabel: 'Messages',
+            }}
+          />
+
+          {/* Notifications Screen */}
+          <Tab.Screen
+            name={SCREEN_NAMES.NOTIFICATIONS}
+            component={NotificationsScreen}
+            options={{
+              title: 'Notifications',
+              tabBarLabel: 'Alerts',
+            }}
+          />
+
+          {/* Profile Screen */}
+          <Tab.Screen
+            name={SCREEN_NAMES.PROFILE}
+            component={ProfileScreen}
+            options={{
+              title: 'Profile',
+              tabBarLabel: 'Profile',
+            }}
+          />
+        </Tab.Navigator>
+      </>
+    );
+  }
+
+  // Default fallback (if role is not determined or other roles)
   return (
     <>
       <StatusBar 
@@ -277,63 +399,13 @@ export default function TabNavigator() {
         }}
         initialRouteName={SCREEN_NAMES.FEED}
       >
-        {/* Feed/Home Screen */}
+        {/* Default Feed Screen */}
         <Tab.Screen
           name={SCREEN_NAMES.FEED}
           component={FeedScreen}
           options={{
             title: 'Feed',
             tabBarLabel: 'Feed',
-          }}
-        />
-
-        {/* Network/Connections Screen */}
-        <Tab.Screen
-          name={SCREEN_NAMES.CONNECTIONS}
-          component={ConnectionsScreen}
-          options={{
-            title: 'Network',
-            tabBarLabel: 'Network',
-          }}
-        />
-
-        {/* Jobs/Cases Screen */}
-        {/* <Tab.Screen
-          name={SCREEN_NAMES.JOBS}
-          component={JobsScreen}
-          options={{
-            title: user?.role === USER_ROLES.LAWYER ? 'Cases' : 'Jobs',
-            tabBarLabel: user?.role === USER_ROLES.LAWYER ? 'Cases' : 'Jobs',
-          }}
-        /> */}
-
-        {/* Messages/Chat Screen */}
-        <Tab.Screen
-          name={SCREEN_NAMES.CHAT}
-          component={ChatScreen}
-          options={{
-            title: 'Messages',
-            tabBarLabel: 'Messages',
-          }}
-        />
-
-        {/* Notifications Screen */}
-        <Tab.Screen
-          name={SCREEN_NAMES.NOTIFICATIONS}
-          component={NotificationsScreen}
-          options={{
-            title: 'Notifications',
-            tabBarLabel: 'Alerts',
-          }}
-        />
-
-        {/* Profile Screen */}
-        <Tab.Screen
-          name={SCREEN_NAMES.PROFILE}
-          component={ProfileScreen}
-          options={{
-            title: 'Profile',
-            tabBarLabel: 'Profile',
           }}
         />
       </Tab.Navigator>
@@ -462,14 +534,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 2,
   },
-});
 
-// Screen names constants (add to your constants file)
-export const ADDITIONAL_SCREEN_NAMES = {
-  FEED: 'Feed',
-  CONNECTIONS: 'Connections',
-  JOBS: 'Jobs',
-  CHAT: 'Chat',
-  NOTIFICATIONS: 'Notifications',
-  PROFILE: 'Profile',
-};
+  // Loading Screen Styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    letterSpacing: 0.5,
+  },
+});

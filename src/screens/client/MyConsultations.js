@@ -1,26 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  ScrollView,
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  View, 
+  StyleSheet, 
+  ScrollView, 
   TouchableOpacity,
   Dimensions,
   StatusBar,
   Animated,
-  TextInput,
-  Modal,
-  FlatList,
-  Alert,
   Platform,
-  Text as RNText,
-  RefreshControl
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
-import {
-  Card,
-  Title,
-  Paragraph,
-  Button,
-  Avatar,
+import { 
+  Card, 
+  Title, 
+  Paragraph, 
+  Button, 
+  Avatar, 
   Chip,
   Text,
   Surface,
@@ -28,18 +28,21 @@ import {
   Badge,
   Divider,
   FAB,
-  Snackbar,
-  Menu,
-  IconButton
+  Portal,
+  Dialog,
+  RadioButton,
+  Checkbox
 } from 'react-native-paper';
-import { MaterialCommunityIcons, Ionicons, Feather } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSelector, useDispatch } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { useSelector } from 'react-redux';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const { width, height } = Dimensions.get('window');
 
-// Enhanced color palette
+// Premium color palette
 const colors = {
   primary: '#0F0F23',
   primaryLight: '#1A1A3A',
@@ -64,2814 +67,1957 @@ const colors = {
     purple: ['#8B5CF6', '#A855F7', '#C084FC'],
     success: ['#10B981', '#34D399', '#6EE7B7'],
     info: ['#3B82F6', '#60A5FA', '#93C5FD'],
-    error: ['#EF4444', '#F87171', '#FCA5A5'],
     glass: ['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.8)'],
-    modal: ['rgba(255, 255, 255, 0.98)', 'rgba(248, 249, 254, 0.95)']
+    error: ['#EF4444', '#DC2626', '#B91C1C']
   }
 };
 
-const consultationStatuses = [
-  { id: 'scheduled', label: 'Scheduled', color: colors.info, icon: 'calendar-clock' },
-  { id: 'completed', label: 'Completed', color: colors.success, icon: 'check-circle' },
-  { id: 'pending', label: 'Pending', color: colors.warning, icon: 'clock-outline' },
-  { id: 'cancelled', label: 'Cancelled', color: colors.error, icon: 'close-circle' },
-  { id: 'rescheduled', label: 'Rescheduled', color: colors.tertiary, icon: 'calendar-refresh' }
-];
-
-const consultationTypes = [
-  { id: 'video', label: 'Video Call', icon: 'video-outline' },
-  { id: 'phone', label: 'Phone Call', icon: 'phone-outline' },
-  { id: 'in-person', label: 'In-Person', icon: 'account-group-outline' },
-  { id: 'chat', label: 'Chat', icon: 'chat-outline' }
-];
-
-const practiceAreas = [
-  { id: 'corporate', label: 'Corporate Law', icon: 'domain' },
-  { id: 'civil', label: 'Civil Law', icon: 'gavel' },
-  { id: 'criminal', label: 'Criminal Law', icon: 'shield-alert' },
-  { id: 'family', label: 'Family Law', icon: 'account-group' },
-  { id: 'property', label: 'Property Law', icon: 'home-city' },
-  { id: 'intellectual', label: 'IP Law', icon: 'lightbulb' },
-  { id: 'tax', label: 'Tax Law', icon: 'calculator' },
-  { id: 'employment', label: 'Employment Law', icon: 'briefcase' }
-];
-
-const priorityOptions = [
-  { id: 'urgent', label: 'Urgent', color: colors.error },
-  { id: 'high', label: 'High', color: colors.warning },
-  { id: 'medium', label: 'Medium', color: colors.info },
-  { id: 'low', label: 'Low', color: colors.success }
-];
-
-export default function MyConsultations({ navigation }) {
-  const isDarkMode = useSelector((state) => state.theme?.isDarkMode || false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState([]);
-  const [sortBy, setSortBy] = useState('date');
-  const [viewMode, setViewMode] = useState('list');
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedConsultation, setSelectedConsultation] = useState(null);
-  const [snackbar, setSnackbar] = useState({ visible: false, text: '' });
-  const [lastDeleted, setLastDeleted] = useState(null);
-  const [menuVisibleFor, setMenuVisibleFor] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [rating, setRating] = useState(0);
+export default function MyConsultations() {
+  const { user } = useSelector((state) => state.auth);
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
   
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Form states
-  const emptyForm = {
-    lawyerName: '',
-    lawyerSpecialization: '',
-    consultationType: 'video',
-    date: '',
+  // State management
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState('clients'); // clients, consultations, requests
+  const [clients, setClients] = useState([]);
+  const [consultations, setConsultations] = useState([]);
+  const [consultationRequests, setConsultationRequests] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [scrollY] = useState(new Animated.Value(0));
+  
+  // Schedule consultation form state
+  const [scheduleForm, setScheduleForm] = useState({
+    clientId: '',
+    clientName: '',
+    date: new Date(),
     time: '',
-    duration: 30,
-    topic: '',
+    duration: '60',
+    type: 'online',
+    subject: '',
     description: '',
     fee: '',
-    priority: 'medium',
-    practiceArea: 'corporate',
-    meetingLink: '',
-    address: '',
-    notes: ''
-  };
-  
-  const [form, setForm] = useState(emptyForm);
-  const [editForm, setEditForm] = useState(null);
+    urgent: false
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
-  // Enhanced mock data
-  const [consultations, setConsultations] = useState([
+  // Mock data - Replace with actual API calls
+  const mockClients = [
     {
       id: '1',
-      lawyer: {
-        name: 'Dr. Sarah Johnson',
-        specialization: 'Corporate Law',
-        rating: 4.9,
-        avatar: 'https://via.placeholder.com/60x60/007AFF/FFFFFF?text=SJ',
-        verified: true,
-        experience: '12 years',
-        email: 'sarah.johnson@lawfirm.com',
-        phone: '+1 234-567-8900'
-      },
-      consultation: {
-        type: 'video',
-        date: '2024-12-15',
-        time: '2:00 PM',
-        duration: 45,
-        fee: '₹2,500',
-        topic: 'Contract Review',
-        description: 'Business partnership agreement review and consultation',
-        priority: 'high',
-        practiceArea: 'corporate'
-      },
-      status: 'scheduled',
-      meetingLink: 'https://meet.example.com/abc123',
-      address: '',
-      documents: ['Partnership_Agreement.pdf', 'NDA.pdf'],
-      notes: 'Prepare all partnership documents before the meeting.',
-      canRate: false,
-      canReschedule: true,
-      canJoin: true,
-      createdAt: '2024-11-15',
-      lastUpdated: '2024-12-08',
-      reminders: [
-        { id: 'r1', type: 'email', time: '24h', enabled: true },
-        { id: 'r2', type: 'push', time: '1h', enabled: true }
-      ],
-      followUpScheduled: false
+      name: 'Reliance Industries Ltd.',
+      email: 'legal@reliance.com',
+      phone: '+91 98765 43210',
+      avatar: 'R',
+      status: 'active',
+      caseCount: 5,
+      totalValue: 1500000,
+      lastContact: '2025-08-15',
+      category: 'Corporate',
+      priority: 'high',
+      location: 'Mumbai, Maharashtra'
     },
     {
       id: '2',
-      lawyer: {
-        name: 'Michael Chen',
-        specialization: 'Family Law',
-        rating: 4.8,
-        avatar: 'https://via.placeholder.com/60x60/34C759/FFFFFF?text=MC',
-        verified: true,
-        experience: '8 years',
-        email: 'michael.chen@lawfirm.com',
-        phone: '+1 234-567-8901'
-      },
-      consultation: {
-        type: 'in-person',
-        date: '2024-12-10',
-        time: '10:30 AM',
-        duration: 60,
-        fee: '₹3,000',
-        topic: 'Divorce Proceedings',
-        description: 'Initial consultation for divorce case and custody matters',
-        priority: 'urgent',
-        practiceArea: 'family'
-      },
-      status: 'completed',
-      meetingLink: '',
-      address: '123 Legal Plaza, Suite 400, Downtown',
-      documents: ['Divorce_Petition.pdf', 'Asset_List.pdf'],
-      notes: 'Discussed custody arrangements and asset division.',
-      canRate: true,
-      canReschedule: false,
-      canJoin: false,
-      createdAt: '2024-11-01',
-      lastUpdated: '2024-12-10',
-      reminders: [],
-      followUpScheduled: true,
-      rating: 0
+      name: 'Greenfield Society',
+      email: 'admin@greenfield.org',
+      phone: '+91 87654 32109',
+      avatar: 'G',
+      status: 'active',
+      caseCount: 2,
+      totalValue: 200000,
+      lastContact: '2025-08-14',
+      category: 'Civil',
+      priority: 'medium',
+      location: 'Hyderabad, Telangana'
     },
     {
       id: '3',
-      lawyer: {
-        name: 'Emily Rodriguez',
-        specialization: 'Real Estate Law',
-        rating: 4.7,
-        avatar: 'https://via.placeholder.com/60x60/FF9500/FFFFFF?text=ER',
-        verified: true,
-        experience: '10 years',
-        email: 'emily.rodriguez@lawfirm.com',
-        phone: '+1 234-567-8902'
-      },
-      consultation: {
-        type: 'phone',
-        date: '2024-12-18',
-        time: '4:00 PM',
-        duration: 30,
-        fee: '₹1,500',
-        topic: 'Property Purchase',
-        description: 'Legal advice on residential property purchase contract',
-        priority: 'medium',
-        practiceArea: 'property'
-      },
-      status: 'pending',
-      meetingLink: '',
-      address: '',
-      documents: ['Property_Contract.pdf'],
-      notes: 'Review property documents before consultation.',
-      canRate: false,
-      canReschedule: true,
-      canJoin: false,
-      createdAt: '2024-11-20',
-      lastUpdated: '2024-12-08',
-      reminders: [
-        { id: 'r1', type: 'email', time: '24h', enabled: true }
-      ],
-      followUpScheduled: false
+      name: 'TechCorp Acquisition',
+      email: 'legal@techcorp.com',
+      phone: '+91 76543 21098',
+      avatar: 'T',
+      status: 'active',
+      caseCount: 1,
+      totalValue: 800000,
+      lastContact: '2025-08-13',
+      category: 'Corporate',
+      priority: 'high',
+      location: 'Bangalore, Karnataka'
     }
-  ]);
+  ];
 
-  const filteredConsultations = consultations
-    .filter((consultation) => {
-      const q = searchQuery.trim().toLowerCase();
-      const matchesSearch =
-        q === '' ||
-        consultation.lawyer.name.toLowerCase().includes(q) ||
-        consultation.consultation.topic.toLowerCase().includes(q) ||
-        consultation.lawyer.specialization.toLowerCase().includes(q);
-
-      const matchesFilters =
-        selectedFilters.length === 0 ||
-        selectedFilters.includes(consultation.status) ||
-        selectedFilters.includes(consultation.consultation.type) ||
-        selectedFilters.includes(consultation.consultation.priority);
-
-      return matchesSearch && matchesFilters;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.consultation.date) - new Date(a.consultation.date);
-      }
-      if (sortBy === 'priority') {
-        const order = { urgent: 4, high: 3, medium: 2, low: 1 };
-        return (order[b.consultation.priority] || 0) - (order[a.consultation.priority] || 0);
-      }
-      if (sortBy === 'fee') {
-        const aFee = parseInt(a.consultation.fee.replace(/[^0-9]/g, '')) || 0;
-        const bFee = parseInt(b.consultation.fee.replace(/[^0-9]/g, '')) || 0;
-        return bFee - aFee;
-      }
-      return 0;
-    });
-
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [200, 120],
-    extrapolate: 'clamp'
-  });
-
-  const searchBarOpacity = scrollY.interpolate({
-    inputRange: [0, 50],
-    outputRange: [1, 0.95],
-    extrapolate: 'clamp'
-  });
-
-  function getConsultationStatusInfo(status) {
-    return consultationStatuses.find((s) => s.id === status) || consultationStatuses[0];
-  }
-
-  function getConsultationTypeInfo(type) {
-    return consultationTypes.find((t) => t.id === type) || consultationTypes[0];
-  }
-
-  function getPracticeAreaInfo(area) {
-    return practiceAreas.find((p) => p.id === area) || practiceAreas[0];
-  }
-
-  function getPriorityColor(priority) {
-    const priorityInfo = priorityOptions.find(p => p.id === priority);
-    return priorityInfo ? priorityInfo.color : colors.textSecondary;
-  }
-
-  function handleBack() {
-    if (navigation && navigation.goBack) {
-      navigation.goBack();
-      return;
-    }
-    Alert.alert('Back', 'Back pressed (no navigation provided)');
-  }
-
-  function openMenuFor(consultationId) {
-    setMenuVisibleFor(consultationId);
-  }
-
-  function closeMenu() {
-    setMenuVisibleFor(null);
-  }
-
-  function handleViewDetails(consultation) {
-    setSelectedConsultation(consultation);
-    setShowDetailsModal(true);
-    closeMenu();
-  }
-
-  function handleEdit(consultation) {
-    setSelectedConsultation(consultation);
-    setEditForm({
-      lawyerName: consultation.lawyer.name,
-      lawyerSpecialization: consultation.lawyer.specialization,
-      consultationType: consultation.consultation.type,
-      date: consultation.consultation.date,
-      time: consultation.consultation.time,
-      duration: consultation.consultation.duration,
-      topic: consultation.consultation.topic,
-      description: consultation.consultation.description,
-      fee: consultation.consultation.fee,
-      priority: consultation.consultation.priority,
-      practiceArea: consultation.consultation.practiceArea,
-      meetingLink: consultation.meetingLink || '',
-      address: consultation.address || '',
-      notes: consultation.notes || ''
-    });
-    setShowEditModal(true);
-    closeMenu();
-  }
-
-  function handleDelete(consultation) {
-    closeMenu();
-    Alert.alert(
-      'Cancel Consultation',
-      `Are you sure you want to cancel "${consultation.consultation.topic}"?`,
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: () => {
-            setConsultations((prev) => prev.filter((c) => c.id !== consultation.id));
-            setLastDeleted(consultation);
-            setSnackbar({ visible: true, text: 'Consultation cancelled successfully' });
-          }
-        }
-      ]
-    );
-  }
-
-  function handleJoinMeeting(consultation) {
-    Alert.alert(
-      'Join Meeting',
-      `Join your ${consultation.consultation.type} consultation with ${consultation.lawyer.name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Join', 
-          onPress: () => {
-            setSnackbar({ visible: true, text: 'Joining consultation...' });
-            // Here you would implement actual meeting join logic
-          }
-        },
-      ]
-    );
-  }
-
-  function handleReschedule(consultation) {
-    Alert.alert(
-      'Reschedule Consultation',
-      'Would you like to reschedule this consultation?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Reschedule', 
-          onPress: () => {
-            setSnackbar({ visible: true, text: 'Rescheduling options opened...' });
-            // Here you would implement rescheduling logic
-          }
-        },
-      ]
-    );
-  }
-
-  function handleRating(consultationId, ratingValue) {
-    setConsultations(prev => 
-      prev.map(item => 
-        item.id === consultationId 
-          ? { ...item, rating: ratingValue, canRate: false }
-          : item
-      )
-    );
-    setShowRatingModal(false);
-    setRating(0);
-    setSnackbar({ visible: true, text: 'Rating submitted successfully' });
-  }
-
-  function undoDelete() {
-    if (lastDeleted) {
-      setConsultations((prev) => [lastDeleted, ...prev]);
-      setLastDeleted(null);
-      setSnackbar({ visible: true, text: 'Consultation restored successfully' });
-    }
-  }
-
-  function resetForm() {
-    setForm(emptyForm);
-  }
-
-  function handleAddConsultation() {
-    if (!form.lawyerName.trim() || !form.topic.trim()) {
-      Alert.alert('Validation Error', 'Please enter lawyer name and consultation topic');
-      return;
-    }
-
-    const newConsultation = {
-      id: Date.now().toString(),
-      lawyer: {
-        name: form.lawyerName,
-        specialization: form.lawyerSpecialization,
-        rating: 0,
-        avatar: `https://via.placeholder.com/60x60/007AFF/FFFFFF?text=${form.lawyerName.charAt(0)}`,
-        verified: false,
-        experience: 'Not specified',
-        email: '',
-        phone: ''
-      },
-      consultation: {
-        type: form.consultationType,
-        date: form.date,
-        time: form.time,
-        duration: form.duration,
-        fee: form.fee,
-        topic: form.topic,
-        description: form.description,
-        priority: form.priority,
-        practiceArea: form.practiceArea
-      },
+  const mockConsultations = [
+    {
+      id: 'c1',
+      clientId: '1',
+      clientName: 'Reliance Industries Ltd.',
+      date: '2025-08-20',
+      time: '10:00 AM',
+      duration: '60 minutes',
+      type: 'online',
       status: 'scheduled',
-      meetingLink: form.meetingLink,
-      address: form.address,
-      documents: [],
-      notes: form.notes,
-      canRate: false,
-      canReschedule: true,
-      canJoin: form.consultationType === 'video',
-      createdAt: new Date().toISOString().split('T')[0],
-      lastUpdated: new Date().toISOString().split('T')[0],
-      reminders: [],
-      followUpScheduled: false
-    };
-
-    setConsultations((prev) => [newConsultation, ...prev]);
-    resetForm();
-    setShowAddModal(false);
-    setSnackbar({ visible: true, text: 'Consultation scheduled successfully' });
-  }
-
-  function handleSaveEdit() {
-    if (!editForm) return;
-    if (!editForm.lawyerName.trim() || !editForm.topic.trim()) {
-      Alert.alert('Validation Error', 'Please enter lawyer name and consultation topic');
-      return;
+      subject: 'M&A Legal Review',
+      fee: 50000,
+      meetingLink: 'https://meet.google.com/abc-defg-hij',
+      notes: 'Urgent consultation regarding acquisition compliance'
+    },
+    {
+      id: 'c2',
+      clientId: '2',
+      clientName: 'Greenfield Society',
+      date: '2025-08-18',
+      time: '2:30 PM',
+      duration: '45 minutes',
+      type: 'offline',
+      status: 'completed',
+      subject: 'Municipal Compliance Discussion',
+      fee: 15000,
+      meetingLink: null,
+      notes: 'Discussed waste management petition strategy'
+    },
+    {
+      id: 'c3',
+      clientId: '3',
+      clientName: 'TechCorp Acquisition',
+      date: '2025-08-19',
+      time: '4:00 PM',
+      duration: '90 minutes',
+      type: 'online',
+      status: 'confirmed',
+      subject: 'Due Diligence Review',
+      fee: 75000,
+      meetingLink: 'https://meet.google.com/xyz-uvwx-yz',
+      notes: 'Comprehensive review of acquisition documents'
     }
+  ];
 
-    setConsultations((prev) => prev.map((c) => 
-      c.id === selectedConsultation.id 
-        ? {
-            ...c,
-            lawyer: {
-              ...c.lawyer,
-              name: editForm.lawyerName,
-              specialization: editForm.lawyerSpecialization
-            },
-            consultation: {
-              ...c.consultation,
-              type: editForm.consultationType,
-              date: editForm.date,
-              time: editForm.time,
-              duration: editForm.duration,
-              topic: editForm.topic,
-              description: editForm.description,
-              fee: editForm.fee,
-              priority: editForm.priority,
-              practiceArea: editForm.practiceArea
-            },
-            meetingLink: editForm.meetingLink,
-            address: editForm.address,
-            notes: editForm.notes,
-            lastUpdated: new Date().toISOString().split('T')[0]
-          }
-        : c
-    ));
-    setShowEditModal(false);
-    setEditForm(null);
-    setSnackbar({ visible: true, text: 'Consultation updated successfully' });
-  }
+  const mockConsultationRequests = [
+    {
+      id: 'r1',
+      clientName: 'StartupX Ltd.',
+      email: 'founder@startupx.com',
+      phone: '+91 98765 12345',
+      subject: 'IPO Legal Consultation',
+      description: 'Need urgent consultation regarding IPO compliance and regulatory requirements. We are planning to go public in Q4 2025.',
+      preferredDate: '2025-08-22',
+      preferredTime: '11:00 AM',
+      type: 'online',
+      urgency: 'high',
+      estimatedDuration: '120 minutes',
+      budget: 100000,
+      status: 'pending',
+      requestedAt: '2025-08-15T10:30:00Z',
+      category: 'Securities Law'
+    },
+    {
+      id: 'r2',
+      clientName: 'Global Tech Inc.',
+      email: 'legal@globaltech.com',
+      phone: '+91 87654 98765',
+      subject: 'Contract Negotiation Support',
+      description: 'Require assistance with international contract negotiations. Multiple stakeholders involved.',
+      preferredDate: '2025-08-21',
+      preferredTime: '3:00 PM',
+      type: 'offline',
+      urgency: 'medium',
+      estimatedDuration: '90 minutes',
+      budget: 60000,
+      status: 'pending',
+      requestedAt: '2025-08-14T15:45:00Z',
+      category: 'Contract Law'
+    }
+  ];
 
-  function onRefresh() {
+  // Load data
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      // Simulate API calls
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setClients(mockClients);
+      setConsultations(mockConsultations);
+      setConsultationRequests(mockConsultationRequests);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-      setSnackbar({ visible: true, text: 'Consultations refreshed' });
-    }, 2000);
-  }
+    await loadData();
+    setRefreshing(false);
+  };
 
-  // Enhanced Consultation Details Modal
-  function ConsultationDetailsModal() {
-    const [activeTab, setActiveTab] = useState('overview');
+  // Filtered and searched data
+  const filteredClients = useMemo(() => {
+    let filtered = clients;
+    
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(client => client.status === filterStatus);
+    }
+    
+    if (searchQuery) {
+      filtered = filtered.filter(client =>
+        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.category.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [clients, filterStatus, searchQuery]);
 
-    if (!selectedConsultation) return null;
+  const filteredConsultations = useMemo(() => {
+    let filtered = consultations;
+    
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(consultation => consultation.status === filterStatus);
+    }
+    
+    if (searchQuery) {
+      filtered = filtered.filter(consultation =>
+        consultation.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        consultation.subject.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [consultations, filterStatus, searchQuery]);
 
-    const tabs = [
-      { id: 'overview', label: 'Overview', icon: 'information-outline' },
-      { id: 'lawyer', label: 'Lawyer', icon: 'account-tie' },
-      { id: 'documents', label: 'Documents', icon: 'file-document-outline' },
-      { id: 'reminders', label: 'Reminders', icon: 'bell-outline' }
-    ];
+  const filteredRequests = useMemo(() => {
+    let filtered = consultationRequests;
+    
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(request => request.status === filterStatus);
+    }
+    
+    if (searchQuery) {
+      filtered = filtered.filter(request =>
+        request.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        request.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        request.category.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [consultationRequests, filterStatus, searchQuery]);
 
-    return (
-      <Modal visible={showDetailsModal} animationType="slide" statusBarTranslucent>
-        <View style={styles.modalContainer}>
-          <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderContent}>
-                <TouchableOpacity 
-                  style={styles.modalCloseButton}
-                  onPress={() => setShowDetailsModal(false)}
-                >
-                  <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-                </TouchableOpacity>
-                
-                <View style={styles.modalHeaderCenter}>
-                  <Text style={styles.modalHeaderTitle} numberOfLines={1}>
-                    {selectedConsultation.consultation.topic}
-                  </Text>
-                  <Text style={styles.modalHeaderSubtitle}>
-                    {selectedConsultation.lawyer.name}
-                  </Text>
-                </View>
+  // Tab configuration
+  const tabs = [
+    { 
+      key: 'clients', 
+      label: 'Active Clients', 
+      icon: 'account-group', 
+      count: filteredClients.length,
+      gradient: colors.gradient.primary 
+    },
+    { 
+      key: 'consultations', 
+      label: 'Consultations', 
+      icon: 'calendar-star', 
+      count: filteredConsultations.length,
+      gradient: colors.gradient.info 
+    },
+    { 
+      key: 'requests', 
+      label: 'Requests', 
+      icon: 'bell-ring', 
+      count: filteredRequests.filter(r => r.status === 'pending').length,
+      gradient: colors.gradient.gold 
+    }
+  ];
 
-                <TouchableOpacity 
-                  style={styles.modalEditButton}
-                  onPress={() => {
-                    setShowDetailsModal(false);
-                    setTimeout(() => handleEdit(selectedConsultation), 300);
-                  }}
-                >
-                  <MaterialCommunityIcons name="pencil" size={20} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
+  // Handle consultation scheduling
+  const handleScheduleConsultation = (client = null) => {
+    if (client) {
+      setScheduleForm(prev => ({
+        ...prev,
+        clientId: client.id,
+        clientName: client.name
+      }));
+    }
+    setShowScheduleModal(true);
+  };
 
-              {/* Tab Bar */}
-              <View style={styles.tabContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {tabs.map((tab) => (
-                    <TouchableOpacity
-                      key={tab.id}
-                      style={[
-                        styles.tab,
-                        activeTab === tab.id && styles.tabActive
-                      ]}
-                      onPress={() => setActiveTab(tab.id)}
-                    >
-                      <MaterialCommunityIcons 
-                        name={tab.icon} 
-                        size={20} 
-                        color={activeTab === tab.id ? colors.primary : colors.textSecondary} 
-                      />
-                      <Text style={[
-                        styles.tabText,
-                        activeTab === tab.id && styles.tabTextActive
-                      ]}>
-                        {tab.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
-
-            {/* Content */}
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              {activeTab === 'overview' && (
-                <View style={styles.tabContent}>
-                  {/* Status Cards */}
-                  <View style={styles.statusRow}>
-                    <Surface style={[styles.statusCard, { flex: 1, marginRight: 8 }]}>
-                      <View style={styles.statusCardContent}>
-                        <View style={[styles.statusIcon, { backgroundColor: getConsultationStatusInfo(selectedConsultation.status).color + '15' }]}>
-                          <MaterialCommunityIcons 
-                            name={getConsultationStatusInfo(selectedConsultation.status).icon} 
-                            size={20} 
-                            color={getConsultationStatusInfo(selectedConsultation.status).color} 
-                          />
-                        </View>
-                        <Text style={styles.statusLabel}>Status</Text>
-                        <Text style={[styles.statusValue, { color: getConsultationStatusInfo(selectedConsultation.status).color }]}>
-                          {getConsultationStatusInfo(selectedConsultation.status).label}
-                        </Text>
-                      </View>
-                    </Surface>
-
-                    <Surface style={[styles.statusCard, { flex: 1, marginLeft: 8 }]}>
-                      <View style={styles.statusCardContent}>
-                        <View style={[styles.statusIcon, { backgroundColor: getPriorityColor(selectedConsultation.consultation.priority) + '15' }]}>
-                          <MaterialCommunityIcons 
-                            name="flag" 
-                            size={20} 
-                            color={getPriorityColor(selectedConsultation.consultation.priority)} 
-                          />
-                        </View>
-                        <Text style={styles.statusLabel}>Priority</Text>
-                        <Text style={[styles.statusValue, { color: getPriorityColor(selectedConsultation.consultation.priority) }]}>
-                          {selectedConsultation.consultation.priority.charAt(0).toUpperCase() + selectedConsultation.consultation.priority.slice(1)}
-                        </Text>
-                      </View>
-                    </Surface>
-                  </View>
-
-                  {/* Consultation Details */}
-                  <Surface style={styles.detailsCard}>
-                    <Text style={styles.cardTitle}>Consultation Details</Text>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Topic</Text>
-                      <Text style={styles.detailValue}>{selectedConsultation.consultation.topic}</Text>
-                    </View>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Type</Text>
-                      <View style={styles.detailChipContainer}>
-                        <Chip 
-                          icon={getConsultationTypeInfo(selectedConsultation.consultation.type).icon} 
-                          compact 
-                          style={styles.detailChip}
-                        >
-                          {getConsultationTypeInfo(selectedConsultation.consultation.type).label}
-                        </Chip>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Practice Area</Text>
-                      <View style={styles.detailChipContainer}>
-                        <Chip 
-                          icon={getPracticeAreaInfo(selectedConsultation.consultation.practiceArea).icon} 
-                          compact 
-                          style={styles.detailChip}
-                        >
-                          {getPracticeAreaInfo(selectedConsultation.consultation.practiceArea).label}
-                        </Chip>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Fee</Text>
-                      <Text style={[styles.detailValue, styles.valueText]}>{selectedConsultation.consultation.fee}</Text>
-                    </View>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Date & Time</Text>
-                      <Text style={styles.detailValue}>
-                        {selectedConsultation.consultation.date} at {selectedConsultation.consultation.time}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailLabel}>Duration</Text>
-                      <Text style={styles.detailValue}>{selectedConsultation.consultation.duration} minutes</Text>
-                    </View>
-
-                    {selectedConsultation.address && (
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Address</Text>
-                        <Text style={styles.detailValue}>{selectedConsultation.address}</Text>
-                      </View>
-                    )}
-                  </Surface>
-
-                  {/* Description */}
-                  <Surface style={styles.descriptionCard}>
-                    <Text style={styles.cardTitle}>Description</Text>
-                    <Text style={styles.descriptionText}>{selectedConsultation.consultation.description}</Text>
-                  </Surface>
-
-                  {/* Action Buttons */}
-                  <View style={styles.actionButtonsContainer}>
-                    {selectedConsultation.canJoin && (
-                      <TouchableOpacity 
-                        style={[styles.primaryActionButton, { backgroundColor: colors.success }]}
-                        onPress={() => handleJoinMeeting(selectedConsultation)}
-                      >
-                        <LinearGradient colors={colors.gradient.success} style={styles.actionButtonGradient}>
-                          <MaterialCommunityIcons name="video" size={20} color="white" />
-                          <Text style={styles.actionButtonText}>Join Meeting</Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    )}
-
-                    {selectedConsultation.canReschedule && (
-                      <TouchableOpacity 
-                        style={[styles.secondaryActionButton, { borderColor: colors.warning }]}
-                        onPress={() => handleReschedule(selectedConsultation)}
-                      >
-                        <MaterialCommunityIcons name="calendar-refresh" size={20} color={colors.warning} />
-                        <Text style={[styles.actionButtonText, { color: colors.warning }]}>Reschedule</Text>
-                      </TouchableOpacity>
-                    )}
-
-                    {selectedConsultation.canRate && (
-                      <TouchableOpacity 
-                        style={[styles.secondaryActionButton, { borderColor: colors.secondary }]}
-                        onPress={() => {
-                          setShowDetailsModal(false);
-                          setTimeout(() => setShowRatingModal(true), 300);
-                        }}
-                      >
-                        <MaterialCommunityIcons name="star-outline" size={20} color={colors.secondary} />
-                        <Text style={[styles.actionButtonText, { color: colors.secondary }]}>Rate Lawyer</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              {activeTab === 'lawyer' && (
-                <View style={styles.tabContent}>
-                  <Surface style={styles.lawyerCard}>
-                    <View style={styles.lawyerHeader}>
-                      <Avatar.Image 
-                        size={80} 
-                        source={{ uri: selectedConsultation.lawyer.avatar }} 
-                        style={styles.lawyerAvatar}
-                      />
-                      <View style={styles.lawyerInfo}>
-                        <View style={styles.lawyerNameRow}>
-                          <Text style={styles.lawyerName}>{selectedConsultation.lawyer.name}</Text>
-                          {selectedConsultation.lawyer.verified && (
-                            <MaterialCommunityIcons name="check-decagram" size={20} color={colors.info} />
-                          )}
-                        </View>
-                        <Text style={styles.lawyerSpecialization}>{selectedConsultation.lawyer.specialization}</Text>
-                        <View style={styles.lawyerRating}>
-                          <MaterialCommunityIcons name="star" size={16} color={colors.secondary} />
-                          <Text style={styles.ratingText}>{selectedConsultation.lawyer.rating}</Text>
-                          <Text style={styles.experienceText}>• {selectedConsultation.lawyer.experience}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {/* Contact Information */}
-                    <View style={styles.contactInfo}>
-                      {selectedConsultation.lawyer.email && (
-                        <TouchableOpacity style={styles.contactItem}>
-                          <MaterialCommunityIcons name="email-outline" size={20} color={colors.primary} />
-                          <Text style={styles.contactText}>{selectedConsultation.lawyer.email}</Text>
-                        </TouchableOpacity>
-                      )}
-                      
-                      {selectedConsultation.lawyer.phone && (
-                        <TouchableOpacity style={styles.contactItem}>
-                          <MaterialCommunityIcons name="phone-outline" size={20} color={colors.primary} />
-                          <Text style={styles.contactText}>{selectedConsultation.lawyer.phone}</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  </Surface>
-                </View>
-              )}
-
-              {activeTab === 'documents' && (
-                <View style={styles.tabContent}>
-                  <Text style={styles.sectionTitle}>Documents ({selectedConsultation.documents?.length || 0})</Text>
-                  {selectedConsultation.documents?.map((doc, index) => (
-                    <Surface key={index} style={styles.documentItem}>
-                      <View style={styles.documentIcon}>
-                        <MaterialCommunityIcons 
-                          name="file-pdf-box"
-                          size={24} 
-                          color={colors.error}
-                        />
-                      </View>
-                      <View style={styles.documentInfo}>
-                        <Text style={styles.documentName}>{doc}</Text>
-                        <Text style={styles.documentSize}>PDF Document</Text>
-                      </View>
-                      <TouchableOpacity style={styles.documentAction}>
-                        <MaterialCommunityIcons name="download" size={20} color={colors.primary} />
-                      </TouchableOpacity>
-                    </Surface>
-                  )) || (
-                    <Text style={styles.noDocumentsText}>No documents available</Text>
-                  )}
-                </View>
-              )}
-
-              {activeTab === 'reminders' && (
-                <View style={styles.tabContent}>
-                  <Text style={styles.sectionTitle}>Reminders</Text>
-                  {selectedConsultation.reminders?.length > 0 ? (
-                    selectedConsultation.reminders.map((reminder) => (
-                      <Surface key={reminder.id} style={styles.reminderItem}>
-                        <View style={styles.reminderIcon}>
-                          <MaterialCommunityIcons 
-                            name={reminder.type === 'email' ? 'email' : 'bell'} 
-                            size={20} 
-                            color={reminder.enabled ? colors.success : colors.textTertiary} 
-                          />
-                        </View>
-                        <View style={styles.reminderInfo}>
-                          <Text style={styles.reminderText}>
-                            {reminder.type === 'email' ? 'Email' : 'Push'} notification
-                          </Text>
-                          <Text style={styles.reminderTime}>{reminder.time} before consultation</Text>
-                        </View>
-                        <View style={styles.reminderStatus}>
-                          <Chip 
-                            compact 
-                            style={[
-                              styles.statusChip,
-                              { backgroundColor: (reminder.enabled ? colors.success : colors.textTertiary) + '15' }
-                            ]}
-                            textStyle={{ 
-                              color: reminder.enabled ? colors.success : colors.textTertiary,
-                              fontSize: 10 
-                            }}
-                          >
-                            {reminder.enabled ? 'Active' : 'Disabled'}
-                          </Chip>
-                        </View>
-                      </Surface>
-                    ))
-                  ) : (
-                    <Text style={styles.noRemindersText}>No reminders set</Text>
-                  )}
-                </View>
-              )}
-
-              <View style={{ height: 100 }} />
-            </ScrollView>
-          </LinearGradient>
-        </View>
-      </Modal>
-    );
-  }
-
-  // Add/Edit Modal
-  function AddEditModal({ visible, onClose, isEdit }) {
-    const [localForm, setLocalForm] = useState(isEdit ? editForm : form);
-    const [showTypeSelector, setShowTypeSelector] = useState(false);
-    const [showPracticeAreaSelector, setShowPracticeAreaSelector] = useState(false);
-    const [showPrioritySelector, setShowPrioritySelector] = useState(false);
-
-    useEffect(() => {
-      if (visible) {
-        setLocalForm(isEdit ? editForm : form);
-      }
-    }, [visible, isEdit, editForm, form]);
-
-    const handleSave = () => {
-      if (!localForm?.lawyerName?.trim() || !localForm?.topic?.trim()) {
-        Alert.alert('Validation Error', 'Please enter lawyer name and consultation topic');
+  const submitConsultationSchedule = async () => {
+    try {
+      // Validate form
+      if (!scheduleForm.clientName || !scheduleForm.subject || !scheduleForm.time) {
+        Alert.alert('Error', 'Please fill in all required fields');
         return;
       }
 
-      if (isEdit) {
-        setEditForm(localForm);
-        handleSaveEdit();
-      } else {
-        setForm(localForm);
-        handleAddConsultation();
-      }
-    };
+      // Simulate API call
+      const newConsultation = {
+        id: `c${Date.now()}`,
+        clientId: scheduleForm.clientId,
+        clientName: scheduleForm.clientName,
+        date: scheduleForm.date.toISOString().split('T')[0],
+        time: scheduleForm.time,
+        duration: `${scheduleForm.duration} minutes`,
+        type: scheduleForm.type,
+        status: 'scheduled',
+        subject: scheduleForm.subject,
+        fee: parseInt(scheduleForm.fee) || 0,
+        meetingLink: scheduleForm.type === 'online' ? 'https://meet.google.com/generated-link' : null,
+        notes: scheduleForm.description
+      };
 
-    if (!localForm) return null;
+      setConsultations(prev => [...prev, newConsultation]);
+      setShowScheduleModal(false);
+      
+      // Reset form
+      setScheduleForm({
+        clientId: '',
+        clientName: '',
+        date: new Date(),
+        time: '',
+        duration: '60',
+        type: 'online',
+        subject: '',
+        description: '',
+        fee: '',
+        urgent: false
+      });
 
-    return (
-      <Modal visible={visible} animationType="slide" statusBarTranslucent>
-        <View style={styles.modalContainer}>
-          <LinearGradient colors={colors.gradient.modal} style={styles.modalGradient}>
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeaderContent}>
-                <TouchableOpacity 
-                  style={styles.modalCloseButton}
-                  onPress={onClose}
-                >
-                  <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-                </TouchableOpacity>
-                
-                <View style={styles.modalHeaderCenter}>
-                  <Text style={styles.modalHeaderTitle}>
-                    {isEdit ? 'Edit Consultation' : 'Schedule Consultation'}
-                  </Text>
-                  <Text style={styles.modalHeaderSubtitle}>
-                    {isEdit ? 'Update consultation details' : 'Enter consultation information'}
-                  </Text>
-                </View>
+      Alert.alert('Success', 'Consultation scheduled successfully');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to schedule consultation');
+    }
+  };
 
-                <TouchableOpacity 
-                  style={styles.modalSaveButton}
-                  onPress={handleSave}
-                >
-                  <MaterialCommunityIcons name="check" size={20} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
+  // Handle consultation request actions
+  const handleRequestAction = (request, action) => {
+    setSelectedRequest(request);
+    setShowRequestDialog(true);
+  };
 
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.formContainer}>
-                {/* Lawyer Information Section */}
-                <Surface style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Lawyer Information</Text>
-                  
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Lawyer Name *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={localForm.lawyerName}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, lawyerName: text }))}
-                      placeholder="Enter lawyer name"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
+  const acceptConsultationRequest = async () => {
+    try {
+      if (!selectedRequest) return;
 
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Specialization</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={localForm.lawyerSpecialization}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, lawyerSpecialization: text }))}
-                      placeholder="Enter specialization"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
-                </Surface>
+      // Convert request to scheduled consultation
+      const newConsultation = {
+        id: `c${Date.now()}`,
+        clientId: `new_${Date.now()}`,
+        clientName: selectedRequest.clientName,
+        date: selectedRequest.preferredDate,
+        time: selectedRequest.preferredTime,
+        duration: selectedRequest.estimatedDuration,
+        type: selectedRequest.type,
+        status: 'scheduled',
+        subject: selectedRequest.subject,
+        fee: selectedRequest.budget,
+        meetingLink: selectedRequest.type === 'online' ? 'https://meet.google.com/generated-link' : null,
+        notes: selectedRequest.description
+      };
 
-                {/* Consultation Details Section */}
-                <Surface style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Consultation Details</Text>
-                  
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Topic *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={localForm.topic}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, topic: text }))}
-                      placeholder="Enter consultation topic"
-                      placeholderTextColor={colors.textTertiary}
-                    />
-                  </View>
+      setConsultations(prev => [...prev, newConsultation]);
+      
+      // Remove from requests
+      setConsultationRequests(prev => 
+        prev.filter(req => req.id !== selectedRequest.id)
+      );
 
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Description</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textArea]}
-                      value={localForm.description}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, description: text }))}
-                      placeholder="Describe your consultation requirements"
-                      placeholderTextColor={colors.textTertiary}
-                      multiline
-                      numberOfLines={3}
-                    />
-                  </View>
+      setShowRequestDialog(false);
+      setSelectedRequest(null);
+      
+      Alert.alert('Success', 'Consultation request accepted and scheduled');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to accept consultation request');
+    }
+  };
 
-                  {/* Type Selector */}
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Consultation Type</Text>
-                    <TouchableOpacity 
-                      style={styles.selectorButton}
-                      onPress={() => setShowTypeSelector(!showTypeSelector)}
-                    >
-                      <View style={styles.selectorContent}>
-                        <MaterialCommunityIcons 
-                          name={getConsultationTypeInfo(localForm.consultationType).icon} 
-                          size={20} 
-                          color={colors.primary} 
-                        />
-                        <Text style={styles.selectorText}>
-                          {getConsultationTypeInfo(localForm.consultationType).label}
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons 
-                        name={showTypeSelector ? "chevron-up" : "chevron-down"} 
-                        size={20} 
-                        color={colors.textSecondary} 
-                      />
-                    </TouchableOpacity>
-                    
-                    {showTypeSelector && (
-                      <View style={styles.selectorOptions}>
-                        {consultationTypes.map((type) => (
-                          <TouchableOpacity
-                            key={type.id}
-                            style={[
-                              styles.selectorOption,
-                              localForm.consultationType === type.id && styles.selectorOptionActive
-                            ]}
-                            onPress={() => {
-                              setLocalForm(prev => ({ ...prev, consultationType: type.id }));
-                              setShowTypeSelector(false);
-                            }}
-                          >
-                            <MaterialCommunityIcons name={type.icon} size={18} color={colors.primary} />
-                            <Text style={styles.selectorOptionText}>{type.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+  const rejectConsultationRequest = async () => {
+    try {
+      if (!selectedRequest) return;
 
-                  {/* Practice Area Selector */}
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Practice Area</Text>
-                    <TouchableOpacity 
-                      style={styles.selectorButton}
-                      onPress={() => setShowPracticeAreaSelector(!showPracticeAreaSelector)}
-                    >
-                      <View style={styles.selectorContent}>
-                        <MaterialCommunityIcons 
-                          name={getPracticeAreaInfo(localForm.practiceArea).icon} 
-                          size={20} 
-                          color={colors.primary} 
-                        />
-                        <Text style={styles.selectorText}>
-                          {getPracticeAreaInfo(localForm.practiceArea).label}
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons 
-                        name={showPracticeAreaSelector ? "chevron-up" : "chevron-down"} 
-                        size={20} 
-                        color={colors.textSecondary} 
-                      />
-                    </TouchableOpacity>
-                    
-                    {showPracticeAreaSelector && (
-                      <View style={styles.selectorOptions}>
-                        {practiceAreas.map((area) => (
-                          <TouchableOpacity
-                            key={area.id}
-                            style={[
-                              styles.selectorOption,
-                              localForm.practiceArea === area.id && styles.selectorOptionActive
-                            ]}
-                            onPress={() => {
-                              setLocalForm(prev => ({ ...prev, practiceArea: area.id }));
-                              setShowPracticeAreaSelector(false);
-                            }}
-                          >
-                            <MaterialCommunityIcons name={area.icon} size={18} color={colors.primary} />
-                            <Text style={styles.selectorOptionText}>{area.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
+      // Update request status
+      setConsultationRequests(prev =>
+        prev.map(req =>
+          req.id === selectedRequest.id
+            ? { ...req, status: 'rejected' }
+            : req
+        )
+      );
 
-                  {/* Priority Selector */}
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Priority</Text>
-                    <TouchableOpacity 
-                      style={styles.selectorButton}
-                      onPress={() => setShowPrioritySelector(!showPrioritySelector)}
-                    >
-                      <View style={styles.selectorContent}>
-                        <MaterialCommunityIcons 
-                          name="flag" 
-                          size={20} 
-                          color={getPriorityColor(localForm.priority)} 
-                        />
-                        <Text style={styles.selectorText}>
-                          {localForm.priority.charAt(0).toUpperCase() + localForm.priority.slice(1)}
-                        </Text>
-                      </View>
-                      <MaterialCommunityIcons 
-                        name={showPrioritySelector ? "chevron-up" : "chevron-down"} 
-                        size={20} 
-                        color={colors.textSecondary} 
-                      />
-                    </TouchableOpacity>
-                    
-                    {showPrioritySelector && (
-                      <View style={styles.selectorOptions}>
-                        {priorityOptions.map((priority) => (
-                          <TouchableOpacity
-                            key={priority.id}
-                            style={[
-                              styles.selectorOption,
-                              localForm.priority === priority.id && styles.selectorOptionActive
-                            ]}
-                            onPress={() => {
-                              setLocalForm(prev => ({ ...prev, priority: priority.id }));
-                              setShowPrioritySelector(false);
-                            }}
-                          >
-                            <MaterialCommunityIcons name="flag" size={18} color={priority.color} />
-                            <Text style={styles.selectorOptionText}>{priority.label}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                </Surface>
+      setShowRequestDialog(false);
+      setSelectedRequest(null);
+      
+      Alert.alert('Success', 'Consultation request rejected');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to reject consultation request');
+    }
+  };
 
-                {/* Schedule & Payment Section */}
-                <Surface style={styles.formSection}>
-                  <Text style={styles.formSectionTitle}>Schedule & Payment</Text>
-                  
-                  <View style={styles.rowContainer}>
-                    <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-                      <Text style={styles.inputLabel}>Date</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={localForm.date}
-                        onChangeText={(text) => setLocalForm(prev => ({ ...prev, date: text }))}
-                        placeholder="YYYY-MM-DD"
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
+  // Get status color
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active': case 'scheduled': case 'confirmed': return colors.success;
+      case 'pending': return colors.warning;
+      case 'completed': return colors.info;
+      case 'cancelled': case 'rejected': return colors.error;
+      default: return colors.textSecondary;
+    }
+  };
 
-                    <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                      <Text style={styles.inputLabel}>Time</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={localForm.time}
-                        onChangeText={(text) => setLocalForm(prev => ({ ...prev, time: text }))}
-                        placeholder="HH:MM AM/PM"
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
-                  </View>
+  // Get priority color
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return colors.error;
+      case 'medium': return colors.warning;
+      case 'low': return colors.success;
+      default: return colors.textSecondary;
+    }
+  };
 
-                  <View style={styles.rowContainer}>
-                    <View style={[styles.inputContainer, { flex: 1, marginRight: 8 }]}>
-                      <Text style={styles.inputLabel}>Duration (minutes)</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={String(localForm.duration)}
-                        onChangeText={(text) => {
-                          const duration = parseInt(text) || 30;
-                          setLocalForm(prev => ({ ...prev, duration }));
-                        }}
-                        placeholder="30"
-                        placeholderTextColor={colors.textTertiary}
-                        keyboardType="numeric"
-                      />
-                    </View>
+  // Format currency
+  const formatCurrency = (amount) => {
+    if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(1)}L`;
+    }
+    return `₹${(amount / 1000).toFixed(0)}K`;
+  };
 
-                    <View style={[styles.inputContainer, { flex: 1, marginLeft: 8 }]}>
-                      <Text style={styles.inputLabel}>Fee</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={localForm.fee}
-                        onChangeText={(text) => setLocalForm(prev => ({ ...prev, fee: text }))}
-                        placeholder="₹0"
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
-                  </View>
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.9],
+    extrapolate: 'clamp',
+  });
 
-                  {localForm.consultationType === 'video' && (
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.inputLabel}>Meeting Link</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={localForm.meetingLink}
-                        onChangeText={(text) => setLocalForm(prev => ({ ...prev, meetingLink: text }))}
-                        placeholder="https://meet.example.com/..."
-                        placeholderTextColor={colors.textTertiary}
-                      />
-                    </View>
-                  )}
-
-                  {localForm.consultationType === 'in-person' && (
-                    <View style={styles.inputContainer}>
-                      <Text style={styles.inputLabel}>Address</Text>
-                      <TextInput
-                        style={[styles.textInput, styles.textArea]}
-                        value={localForm.address}
-                        onChangeText={(text) => setLocalForm(prev => ({ ...prev, address: text }))}
-                        placeholder="Enter meeting address"
-                        placeholderTextColor={colors.textTertiary}
-                        multiline
-                        numberOfLines={2}
-                      />
-                    </View>
-                  )}
-
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>Notes</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.textArea]}
-                      value={localForm.notes}
-                      onChangeText={(text) => setLocalForm(prev => ({ ...prev, notes: text }))}
-                      placeholder="Additional notes or requirements"
-                      placeholderTextColor={colors.textTertiary}
-                      multiline
-                      numberOfLines={2}
-                    />
-                  </View>
-                </Surface>
-
-                <View style={{ height: 100 }} />
-              </View>
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity 
-                style={[styles.footerButton, styles.cancelButton]}
-                onPress={onClose}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.footerButton, styles.saveButton]}
-                onPress={handleSave}
-              >
-                <LinearGradient colors={colors.gradient.primary} style={styles.saveButtonGradient}>
-                  <Text style={styles.saveButtonText}>
-                    {isEdit ? 'Update Consultation' : 'Schedule Consultation'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-      </Modal>
-    );
-  }
-
-  // Rating Modal
-  function RatingModal() {
-    return (
-      <Modal
-        visible={showRatingModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowRatingModal(false)}
+  const renderHeader = () => (
+    <Animated.View style={[styles.headerContainer, { opacity: headerOpacity }]}>
+      <LinearGradient
+        colors={colors.gradient.primary}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <BlurView intensity={20} style={styles.ratingModalOverlay}>
-          <View style={styles.ratingModalContainer}>
-            <LinearGradient
-              colors={colors.gradient.modal}
-              style={styles.ratingModalContent}
-            >
-              <Text style={styles.ratingModalTitle}>
-                Rate Your Consultation
-              </Text>
-              
-              {selectedConsultation && (
-                <Text style={styles.ratingModalSubtitle}>
-                  How was your consultation with {selectedConsultation.lawyer.name}?
-                </Text>
-              )}
-
-              <View style={styles.ratingContainer}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setRating(star)}
-                    style={styles.starButton}
-                  >
-                    <MaterialCommunityIcons
-                      name={star <= rating ? 'star' : 'star-outline'}
-                      size={32}
-                      color={star <= rating ? colors.secondary : colors.textTertiary}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.ratingActions}>
-                <TouchableOpacity
-                  style={styles.ratingCancelButton}
-                  onPress={() => {
-                    setShowRatingModal(false);
-                    setRating(0);
-                  }}
-                >
-                  <Text style={styles.ratingCancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.ratingSubmitButton,
-                    { 
-                      backgroundColor: rating > 0 ? colors.primary : colors.textTertiary,
-                      opacity: rating > 0 ? 1 : 0.5,
-                    }
-                  ]}
-                  onPress={() => selectedConsultation && handleRating(selectedConsultation.id, rating)}
-                  disabled={rating === 0}
-                >
-                  <Text style={styles.ratingSubmitButtonText}>Submit Rating</Text>
-                </TouchableOpacity>
-              </View>
-            </LinearGradient>
+        <View style={styles.headerContent}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
+          </TouchableOpacity>
+          
+          <View style={styles.headerTitle}>
+            <Text style={styles.headerTitleText}>Client Management</Text>
+            <Text style={styles.headerSubtitle}>Active clients & consultations</Text>
           </View>
-        </BlurView>
-      </Modal>
-    );
-  }
+          
+          <TouchableOpacity style={styles.headerAction} activeOpacity={0.8}>
+            <MaterialCommunityIcons name="dots-vertical" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <BlurView intensity={80} tint="light" style={styles.searchBlur}>
+            <LinearGradient
+              colors={colors.gradient.glass}
+              style={styles.searchGradient}
+            >
+              <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search clients, consultations..."
+                placeholderTextColor={colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery ? (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              ) : null}
+            </LinearGradient>
+          </BlurView>
+        </View>
+      </LinearGradient>
+    </Animated.View>
+  );
 
-  // Render Consultation Card
-  const renderConsultationCard = ({ item, index }) => {
-    const isMenuOpen = menuVisibleFor === item.id;
-    const cardWidth = viewMode === 'grid' ? (width - 72) / 2 : '100%';
-    const canJoin = item.canJoin && new Date(`${item.consultation.date} ${item.consultation.time}`).getTime() - Date.now() < 900000;
-
-    return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => handleViewDetails(item)}
-        style={{ width: cardWidth, marginRight: viewMode === 'grid' && index % 2 === 0 ? 16 : 0 }}
+  const renderTabs = () => (
+    <View style={styles.tabsContainer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabsContent}
       >
-        <Surface style={styles.consultationCard}>
-          <LinearGradient colors={colors.gradient.glass} style={styles.consultationCardGradient}>
-            <View style={styles.consultationHeader}>
-              <View style={styles.consultationIconContainer}>
-                <LinearGradient colors={colors.gradient.primary} style={styles.consultationIcon}>
-                  <MaterialCommunityIcons 
-                    name={getConsultationTypeInfo(item.consultation.type).icon} 
-                    size={20} 
-                    color="white" 
-                  />
-                </LinearGradient>
-              </View>
-
-              <View style={styles.consultationMainInfo}>
-                <View style={styles.consultationTitleRow}>
-                  <Text style={styles.consultationTitle} numberOfLines={2}>
-                    {item.consultation.topic}
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.tab,
+              activeTab === tab.key && styles.tabActive
+            ]}
+            onPress={() => setActiveTab(tab.key)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={activeTab === tab.key ? tab.gradient : ['transparent', 'transparent']}
+              style={styles.tabGradient}
+            >
+              <MaterialCommunityIcons
+                name={tab.icon}
+                size={20}
+                color={activeTab === tab.key ? 'white' : colors.textSecondary}
+              />
+              <Text style={[
+                styles.tabText,
+                activeTab === tab.key && styles.tabTextActive
+              ]}>
+                {tab.label}
+              </Text>
+              {tab.count > 0 && (
+                <View style={[
+                  styles.tabBadge,
+                  activeTab === tab.key && styles.tabBadgeActive
+                ]}>
+                  <Text style={[
+                    styles.tabBadgeText,
+                    activeTab === tab.key && styles.tabBadgeTextActive
+                  ]}>
+                    {tab.count}
                   </Text>
-                  <View style={styles.priorityIndicator}>
-                    <View style={[
-                      styles.priorityDot, 
-                      { backgroundColor: getPriorityColor(item.consultation.priority) }
-                    ]} />
-                  </View>
                 </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
 
-                <Text style={styles.consultationLawyer}>{item.lawyer.name}</Text>
-                <Text style={styles.consultationSpecialization}>{item.lawyer.specialization}</Text>
-              </View>
-
-              <Menu
-                visible={isMenuOpen}
-                onDismiss={closeMenu}
-                anchor={
-                  <TouchableOpacity onPress={() => openMenuFor(item.id)} style={styles.moreButton}>
-                    <MaterialCommunityIcons name="dots-vertical" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                }
+  const renderClientCard = (client) => (
+    <TouchableOpacity key={client.id} activeOpacity={0.9}>
+      <Surface style={styles.clientCard}>
+        <View style={styles.clientCardContent}>
+          <View style={styles.clientHeader}>
+            <View style={styles.clientAvatarSection}>
+              <LinearGradient
+                colors={colors.gradient.gold}
+                style={styles.clientAvatarGradient}
               >
-                <Menu.Item onPress={() => handleViewDetails(item)} title="View Details" leadingIcon="eye" />
-                <Menu.Item onPress={() => handleEdit(item)} title="Edit" leadingIcon="pencil" />
-                {item.canJoin && (
-                  <Menu.Item onPress={() => handleJoinMeeting(item)} title="Join Meeting" leadingIcon="video" />
-                )}
-                {item.canReschedule && (
-                  <Menu.Item onPress={() => handleReschedule(item)} title="Reschedule" leadingIcon="calendar-refresh" />
-                )}
-                <Divider />
-                <Menu.Item onPress={() => handleDelete(item)} title="Cancel" leadingIcon="close" />
-              </Menu>
+                <Avatar.Text
+                  size={48}
+                  label={client.avatar}
+                  style={styles.clientAvatar}
+                  labelStyle={styles.clientAvatarLabel}
+                />
+              </LinearGradient>
+              <View style={[
+                styles.clientStatusIndicator,
+                { backgroundColor: getStatusColor(client.status) }
+              ]} />
             </View>
+            
+            <View style={styles.clientInfo}>
+              <Text style={styles.clientName}>{client.name}</Text>
+              <Text style={styles.clientEmail}>{client.email}</Text>
+              <View style={styles.clientMeta}>
+                <View style={styles.clientMetaItem}>
+                  <MaterialCommunityIcons name="map-marker" size={14} color={colors.textSecondary} />
+                  <Text style={styles.clientMetaText}>{client.location}</Text>
+                </View>
+              </View>
+            </View>
+            
+            <View style={styles.clientActions}>
+              <TouchableOpacity 
+                style={styles.clientActionButton}
+                onPress={() => handleScheduleConsultation(client)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradient.success}
+                  style={styles.clientActionGradient}
+                >
+                  <MaterialCommunityIcons name="calendar-plus" size={16} color="white" />
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.clientActionButton} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={colors.gradient.info}
+                  style={styles.clientActionGradient}
+                >
+                  <MaterialCommunityIcons name="message-text" size={16} color="white" />
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <View style={styles.clientStats}>
+            <View style={styles.clientStat}>
+              <Text style={styles.clientStatValue}>{client.caseCount}</Text>
+              <Text style={styles.clientStatLabel}>Active Cases</Text>
+            </View>
+            
+            <View style={styles.clientStat}>
+              <Text style={styles.clientStatValue}>{formatCurrency(client.totalValue)}</Text>
+              <Text style={styles.clientStatLabel}>Total Value</Text>
+            </View>
+            
+            <View style={styles.clientStat}>
+              <Text style={styles.clientStatValue}>{client.category}</Text>
+              <Text style={styles.clientStatLabel}>Category</Text>
+            </View>
+            
+            <View style={styles.clientStat}>
+              <View style={styles.priorityIndicator}>
+                <View style={[
+                  styles.priorityDot,
+                  { backgroundColor: getPriorityColor(client.priority) }
+                ]} />
+                <Text style={styles.clientStatValue}>{client.priority}</Text>
+              </View>
+              <Text style={styles.clientStatLabel}>Priority</Text>
+            </View>
+          </View>
+          
+          <View style={styles.clientFooter}>
+            <Text style={styles.lastContactText}>
+              Last contact: {new Date(client.lastContact).toLocaleDateString()}
+            </Text>
+            <TouchableOpacity style={styles.viewDetailsButton} activeOpacity={0.8}>
+              <Text style={styles.viewDetailsText}>View Details</Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Surface>
+    </TouchableOpacity>
+  );
 
-            <View style={styles.consultationMetaContainer}>
-              <View style={styles.consultationMetaRow}>
+  const renderConsultationCard = (consultation) => (
+    <TouchableOpacity key={consultation.id} activeOpacity={0.9}>
+      <Surface style={styles.consultationCard}>
+        <View style={styles.consultationCardContent}>
+          <View style={styles.consultationHeader}>
+            <View style={styles.consultationInfo}>
+              <Text style={styles.consultationClient}>{consultation.clientName}</Text>
+              <Text style={styles.consultationSubject}>{consultation.subject}</Text>
+            </View>
+            
+            <View style={styles.consultationStatus}>
+              <Chip
+                mode="flat"
+                style={[
+                  styles.statusChip,
+                  { backgroundColor: getStatusColor(consultation.status) + '20' }
+                ]}
+                textStyle={[
+                  styles.statusChipText,
+                  { color: getStatusColor(consultation.status) }
+                ]}
+              >
+                {consultation.status}
+              </Chip>
+            </View>
+          </View>
+          
+          <View style={styles.consultationDetails}>
+            <View style={styles.consultationDetailItem}>
+              <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} />
+              <Text style={styles.consultationDetailText}>
+                {new Date(consultation.date).toLocaleDateString()} at {consultation.time}
+              </Text>
+            </View>
+            
+            <View style={styles.consultationDetailItem}>
+              <MaterialCommunityIcons name="clock" size={16} color={colors.textSecondary} />
+              <Text style={styles.consultationDetailText}>{consultation.duration}</Text>
+            </View>
+            
+            <View style={styles.consultationDetailItem}>
+              <MaterialCommunityIcons 
+                name={consultation.type === 'online' ? 'video' : 'office-building'} 
+                size={16} 
+                color={colors.textSecondary} 
+              />
+              <Text style={styles.consultationDetailText}>
+                {consultation.type === 'online' ? 'Online Meeting' : 'In-Person'}
+              </Text>
+            </View>
+            
+            <View style={styles.consultationDetailItem}>
+              <MaterialCommunityIcons name="currency-inr" size={16} color={colors.textSecondary} />
+              <Text style={styles.consultationDetailText}>{formatCurrency(consultation.fee)}</Text>
+            </View>
+          </View>
+          
+          {consultation.notes && (
+            <View style={styles.consultationNotes}>
+              <Text style={styles.notesLabel}>Notes:</Text>
+              <Text style={styles.notesText}>{consultation.notes}</Text>
+            </View>
+          )}
+          
+          <View style={styles.consultationActions}>
+            {consultation.meetingLink && (
+              <TouchableOpacity style={styles.consultationAction} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={colors.gradient.success}
+                  style={styles.consultationActionGradient}
+                >
+                  <MaterialCommunityIcons name="video" size={16} color="white" />
+                  <Text style={styles.consultationActionText}>Join Meeting</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity style={styles.consultationAction} activeOpacity={0.8}>
+              <LinearGradient
+                colors={colors.gradient.info}
+                style={styles.consultationActionGradient}
+              >
+                <MaterialCommunityIcons name="pencil" size={16} color="white" />
+                <Text style={styles.consultationActionText}>Edit</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Surface>
+    </TouchableOpacity>
+  );
+
+  const renderRequestCard = (request) => (
+    <TouchableOpacity key={request.id} activeOpacity={0.9}>
+      <Surface style={styles.requestCard}>
+        <View style={styles.requestCardContent}>
+          <View style={styles.requestHeader}>
+            <View style={styles.requestInfo}>
+              <Text style={styles.requestClient}>{request.clientName}</Text>
+              <Text style={styles.requestSubject}>{request.subject}</Text>
+              <View style={styles.requestMeta}>
                 <Chip
                   mode="flat"
                   compact
                   style={[
-                    styles.statusChip, 
-                    { backgroundColor: getConsultationStatusInfo(item.status).color + '15' }
+                    styles.categoryChip,
+                    { backgroundColor: colors.tertiary + '20' }
                   ]}
-                  textStyle={{ 
-                    color: getConsultationStatusInfo(item.status).color, 
-                    fontSize: 10, 
-                    fontWeight: '700' 
-                  }}
-                  icon={getConsultationStatusInfo(item.status).icon}
+                  textStyle={styles.categoryChipText}
                 >
-                  {getConsultationStatusInfo(item.status).label}
+                  {request.category}
                 </Chip>
-
-                <View style={styles.feeContainer}>
-                  <Text style={styles.consultationFee}>{item.consultation.fee}</Text>
-                  <MaterialCommunityIcons name="currency-inr" size={14} color={colors.success} />
-                </View>
-              </View>
-
-              <View style={styles.timeContainer}>
-                <View style={styles.timeItem}>
-                  <MaterialCommunityIcons name="calendar-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.timeText}>{item.consultation.date}</Text>
-                </View>
-                <View style={styles.timeItem}>
-                  <MaterialCommunityIcons name="clock-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.timeText}>{item.consultation.time}</Text>
-                </View>
-                <View style={styles.timeItem}>
-                  <MaterialCommunityIcons name="timer-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.timeText}>{item.consultation.duration}m</Text>
+                
+                <View style={styles.urgencyIndicator}>
+                  <View style={[
+                    styles.urgencyDot,
+                    { backgroundColor: getPriorityColor(request.urgency) }
+                  ]} />
+                  <Text style={styles.urgencyText}>{request.urgency}</Text>
                 </View>
               </View>
             </View>
-
-            <View style={styles.consultationFooter}>
-              <View style={styles.footerLeft}>
-                <View style={styles.lawyerRatingContainer}>
-                  <MaterialCommunityIcons name="star" size={14} color={colors.secondary} />
-                  <Text style={styles.lawyerRatingText}>{item.lawyer.rating}</Text>
-                  {item.lawyer.verified && (
-                    <MaterialCommunityIcons name="check-decagram" size={14} color={colors.info} />
-                  )}
-                </View>
-
-                <View style={styles.documentsInfo}>
-                  <MaterialCommunityIcons name="file-document-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.documentsText}>{item.documents.length} docs</Text>
-                </View>
+            
+            <View style={styles.requestBudget}>
+              <Text style={styles.budgetAmount}>{formatCurrency(request.budget)}</Text>
+              <Text style={styles.budgetLabel}>Budget</Text>
+            </View>
+          </View>
+          
+          <View style={styles.requestDetails}>
+            <Text style={styles.requestDescription}>{request.description}</Text>
+            
+            <View style={styles.requestPreferences}>
+              <View style={styles.requestPreferenceItem}>
+                <MaterialCommunityIcons name="calendar" size={16} color={colors.textSecondary} />
+                <Text style={styles.requestPreferenceText}>
+                  {new Date(request.preferredDate).toLocaleDateString()} at {request.preferredTime}
+                </Text>
               </View>
-
-              <View style={styles.footerRight}>
-                {canJoin && (
-                  <TouchableOpacity 
-                    style={[styles.quickActionButton, { backgroundColor: colors.success }]}
-                    onPress={() => handleJoinMeeting(item)}
-                  >
-                    <MaterialCommunityIcons name="video" size={16} color="white" />
-                    <Text style={styles.quickActionText}>Join</Text>
-                  </TouchableOpacity>
-                )}
-
-                {item.canReschedule && !canJoin && (
-                  <TouchableOpacity 
-                    style={[styles.quickActionButton, { backgroundColor: colors.warning }]}
-                    onPress={() => handleReschedule(item)}
-                  >
-                    <MaterialCommunityIcons name="calendar-refresh" size={16} color="white" />
-                    <Text style={styles.quickActionText}>Reschedule</Text>
-                  </TouchableOpacity>
-                )}
-
-                {item.canRate && (
-                  <TouchableOpacity 
-                    style={[styles.quickActionButton, { backgroundColor: colors.secondary }]}
-                    onPress={() => {
-                      setSelectedConsultation(item);
-                      setShowRatingModal(true);
-                    }}
-                  >
-                    <MaterialCommunityIcons name="star" size={16} color="white" />
-                    <Text style={styles.quickActionText}>Rate</Text>
-                  </TouchableOpacity>
-                )}
+              
+              <View style={styles.requestPreferenceItem}>
+                <MaterialCommunityIcons name="clock" size={16} color={colors.textSecondary} />
+                <Text style={styles.requestPreferenceText}>{request.estimatedDuration}</Text>
+              </View>
+              
+              <View style={styles.requestPreferenceItem}>
+                <MaterialCommunityIcons 
+                  name={request.type === 'online' ? 'video' : 'office-building'} 
+                  size={16} 
+                  color={colors.textSecondary} 
+                />
+                <Text style={styles.requestPreferenceText}>
+                  {request.type === 'online' ? 'Online' : 'In-Person'}
+                </Text>
               </View>
             </View>
-          </LinearGradient>
-        </Surface>
-      </TouchableOpacity>
+            
+            <View style={styles.requestContact}>
+              <View style={styles.contactItem}>
+                <MaterialCommunityIcons name="email" size={16} color={colors.textSecondary} />
+                <Text style={styles.contactText}>{request.email}</Text>
+              </View>
+              <View style={styles.contactItem}>
+                <MaterialCommunityIcons name="phone" size={16} color={colors.textSecondary} />
+                <Text style={styles.contactText}>{request.phone}</Text>
+              </View>
+            </View>
+          </View>
+          
+          <View style={styles.requestFooter}>
+            <Text style={styles.requestTime}>
+              Requested {new Date(request.requestedAt).toLocaleDateString()}
+            </Text>
+            
+            <View style={styles.requestActions}>
+              <TouchableOpacity 
+                style={styles.requestActionButton}
+                onPress={() => handleRequestAction(request, 'reject')}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradient.error}
+                  style={styles.requestActionGradient}
+                >
+                  <MaterialCommunityIcons name="close" size={16} color="white" />
+                  <Text style={styles.requestActionText}>Decline</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.requestActionButton}
+                onPress={() => handleRequestAction(request, 'accept')}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={colors.gradient.success}
+                  style={styles.requestActionGradient}
+                >
+                  <MaterialCommunityIcons name="check" size={16} color="white" />
+                  <Text style={styles.requestActionText}>Accept</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Surface>
+    </TouchableOpacity>
+  );
+
+  const renderScheduleModal = () => (
+    <Modal
+      visible={showScheduleModal}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setShowScheduleModal(false)}
+    >
+      <KeyboardAvoidingView 
+        style={styles.modalContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <LinearGradient
+          colors={colors.gradient.primary}
+          style={styles.modalHeader}
+        >
+          <View style={styles.modalHeaderContent}>
+            <TouchableOpacity 
+              onPress={() => setShowScheduleModal(false)}
+              style={styles.modalCloseButton}
+            >
+              <MaterialCommunityIcons name="close" size={24} color="white" />
+            </TouchableOpacity>
+            
+            <Text style={styles.modalTitle}>Schedule Consultation</Text>
+            
+            <TouchableOpacity 
+              onPress={submitConsultationSchedule}
+              style={styles.modalSaveButton}
+            >
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+        
+        <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+          {/* Client Selection */}
+          <View style={styles.formSection}>
+            <Text style={styles.formLabel}>Client *</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Enter client name"
+              value={scheduleForm.clientName}
+              onChangeText={(text) => setScheduleForm(prev => ({ ...prev, clientName: text }))}
+            />
+          </View>
+          
+          {/* Subject */}
+          <View style={styles.formSection}>
+            <Text style={styles.formLabel}>Subject *</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="Consultation subject"
+              value={scheduleForm.subject}
+              onChangeText={(text) => setScheduleForm(prev => ({ ...prev, subject: text }))}
+            />
+          </View>
+          
+          {/* Date and Time */}
+          <View style={styles.formRow}>
+            <View style={styles.formHalf}>
+              <Text style={styles.formLabel}>Date *</Text>
+              <TouchableOpacity 
+                style={styles.formInput}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateText}>
+                  {scheduleForm.date.toLocaleDateString()}
+                </Text>
+                <MaterialCommunityIcons name="calendar" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.formHalf}>
+              <Text style={styles.formLabel}>Time *</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="10:00 AM"
+                value={scheduleForm.time}
+                onChangeText={(text) => setScheduleForm(prev => ({ ...prev, time: text }))}
+              />
+            </View>
+          </View>
+          
+          {/* Duration and Type */}
+          <View style={styles.formRow}>
+            <View style={styles.formHalf}>
+              <Text style={styles.formLabel}>Duration (minutes)</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="60"
+                keyboardType="numeric"
+                value={scheduleForm.duration}
+                onChangeText={(text) => setScheduleForm(prev => ({ ...prev, duration: text }))}
+              />
+            </View>
+            
+            <View style={styles.formHalf}>
+              <Text style={styles.formLabel}>Type</Text>
+              <View style={styles.radioGroup}>
+                <TouchableOpacity
+                  style={styles.radioOption}
+                  onPress={() => setScheduleForm(prev => ({ ...prev, type: 'online' }))}
+                >
+                  <RadioButton
+                    value="online"
+                    status={scheduleForm.type === 'online' ? 'checked' : 'unchecked'}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.radioText}>Online</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.radioOption}
+                  onPress={() => setScheduleForm(prev => ({ ...prev, type: 'offline' }))}
+                >
+                  <RadioButton
+                    value="offline"
+                    status={scheduleForm.type === 'offline' ? 'checked' : 'unchecked'}
+                    color={colors.primary}
+                  />
+                  <Text style={styles.radioText}>In-Person</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          
+          {/* Fee */}
+          <View style={styles.formSection}>
+            <Text style={styles.formLabel}>Consultation Fee (₹)</Text>
+            <TextInput
+              style={styles.formInput}
+              placeholder="50000"
+              keyboardType="numeric"
+              value={scheduleForm.fee}
+              onChangeText={(text) => setScheduleForm(prev => ({ ...prev, fee: text }))}
+            />
+          </View>
+          
+          {/* Description */}
+          <View style={styles.formSection}>
+            <Text style={styles.formLabel}>Notes</Text>
+            <TextInput
+              style={[styles.formInput, styles.formTextArea]}
+              placeholder="Additional notes or agenda"
+              multiline
+              numberOfLines={4}
+              value={scheduleForm.description}
+              onChangeText={(text) => setScheduleForm(prev => ({ ...prev, description: text }))}
+            />
+          </View>
+          
+          {/* Urgent Checkbox */}
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => setScheduleForm(prev => ({ ...prev, urgent: !prev.urgent }))}
+          >
+            <Checkbox
+              status={scheduleForm.urgent ? 'checked' : 'unchecked'}
+              color={colors.primary}
+            />
+            <Text style={styles.checkboxText}>Mark as urgent</Text>
+          </TouchableOpacity>
+        </ScrollView>
+        
+        {showDatePicker && (
+          <DateTimePicker
+            value={scheduleForm.date}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setScheduleForm(prev => ({ ...prev, date: selectedDate }));
+              }
+            }}
+            minimumDate={new Date()}
+          />
+        )}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderRequestDialog = () => (
+    <Portal>
+      <Dialog
+        visible={showRequestDialog}
+        onDismiss={() => setShowRequestDialog(false)}
+        style={styles.requestDialog}
+      >
+        <Dialog.Title style={styles.dialogTitle}>
+          Consultation Request
+        </Dialog.Title>
+        
+        <Dialog.Content>
+          {selectedRequest && (
+            <View>
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Client: </Text>
+                {selectedRequest.clientName}
+              </Text>
+              
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Subject: </Text>
+                {selectedRequest.subject}
+              </Text>
+              
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Preferred Date: </Text>
+                {new Date(selectedRequest.preferredDate).toLocaleDateString()} at {selectedRequest.preferredTime}
+              </Text>
+              
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Budget: </Text>
+                {formatCurrency(selectedRequest.budget)}
+              </Text>
+              
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Duration: </Text>
+                {selectedRequest.estimatedDuration}
+              </Text>
+              
+              <Text style={styles.dialogText}>
+                <Text style={styles.dialogLabel}>Type: </Text>
+                {selectedRequest.type === 'online' ? 'Online Meeting' : 'In-Person Meeting'}
+              </Text>
+              
+              <Text style={styles.dialogDescription}>
+                {selectedRequest.description}
+              </Text>
+            </View>
+          )}
+        </Dialog.Content>
+        
+        <Dialog.Actions style={styles.dialogActions}>
+          <Button
+            mode="outlined"
+            onPress={rejectConsultationRequest}
+            style={styles.dialogButton}
+            labelStyle={[styles.dialogButtonText, { color: colors.error }]}
+          >
+            Decline
+          </Button>
+          
+          <Button
+            mode="contained"
+            onPress={acceptConsultationRequest}
+            style={[styles.dialogButton, { backgroundColor: colors.success }]}
+            labelStyle={styles.dialogButtonText}
+          >
+            Accept & Schedule
+          </Button>
+        </Dialog.Actions>
+      </Dialog>
+    </Portal>
+  );
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading clients...</Text>
+        </View>
+      );
+    }
+
+    const getEmptyMessage = () => {
+      switch (activeTab) {
+        case 'clients': return 'No active clients found';
+        case 'consultations': return 'No consultations scheduled';
+        case 'requests': return 'No consultation requests';
+        default: return 'No data available';
+      }
+    };
+
+    const getEmptyIcon = () => {
+      switch (activeTab) {
+        case 'clients': return 'account-group';
+        case 'consultations': return 'calendar-star';
+        case 'requests': return 'bell-ring';
+        default: return 'information';
+      }
+    };
+
+    const getCurrentData = () => {
+      switch (activeTab) {
+        case 'clients': return filteredClients;
+        case 'consultations': return filteredConsultations;
+        case 'requests': return filteredRequests;
+        default: return [];
+      }
+    };
+
+    const renderCard = (item) => {
+      switch (activeTab) {
+        case 'clients': return renderClientCard(item);
+        case 'consultations': return renderConsultationCard(item);
+        case 'requests': return renderRequestCard(item);
+        default: return null;
+      }
+    };
+
+    const currentData = getCurrentData();
+
+    if (currentData.length === 0) {
+      return (
+        <View style={styles.emptyState}>
+          <MaterialCommunityIcons 
+            name={getEmptyIcon()} 
+            size={64} 
+            color={colors.textTertiary} 
+          />
+          <Text style={styles.emptyStateTitle}>{getEmptyMessage()}</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            {searchQuery ? 'Try adjusting your search' : 'Data will appear here when available'}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.contentContainer}>
+        {currentData.map(item => renderCard(item))}
+      </View>
     );
   };
+
+  // if (loading) {
+  //   return (
+  //     <View style={styles.loadingContainer}>
+  //       <LinearGradient
+  //         colors={colors.gradient.primary}
+  //         style={styles.loadingGradient}
+  //       >
+  //         <ActivityIndicator size="large" color="white" />
+  //         <Text style={styles.loadingText}>Loading client data...</Text>
+  //       </LinearGradient>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
-        <LinearGradient colors={colors.gradient.primary} style={styles.headerGradient}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerTop}>
-              <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color="white" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>My Consultations</Text>
-              <View style={styles.headerActions}>
-                <TouchableOpacity 
-                  style={styles.headerAction} 
-                  onPress={() => setViewMode((v) => v === 'list' ? 'grid' : 'list')}
-                >
-                  <MaterialCommunityIcons 
-                    name={viewMode === 'list' ? 'view-grid' : 'view-list'} 
-                    size={20} 
-                    color="white" 
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{consultations.length}</Text>
-                <Text style={styles.statLabel}>Total</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {consultations.filter(c => c.status === 'scheduled').length}
-                </Text>
-                <Text style={styles.statLabel}>Scheduled</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {consultations.filter(c => c.status === 'completed').length}
-                </Text>
-                <Text style={styles.statLabel}>Completed</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  ₹{Math.round(consultations.reduce((s, c) => {
-                    const fee = parseInt(c.consultation.fee.replace(/[^0-9]/g, '')) || 0;
-                    return s + fee;
-                  }, 0) / 1000)}K
-                </Text>
-                <Text style={styles.statLabel}>Total Fees</Text>
-              </View>
-            </View>
-          </View>
-        </LinearGradient>
-      </Animated.View>
-
-      <Animated.View style={[styles.searchContainer, { opacity: searchBarOpacity }]}>
-        <Surface style={styles.searchSurface}>
-          <View style={styles.searchBar}>
-            <View style={styles.searchInputContainer}>
-              <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} style={styles.searchIcon} />
-              <TextInput 
-                style={styles.searchInput} 
-                placeholder="Search consultations, lawyers, topics..." 
-                placeholderTextColor={colors.textSecondary} 
-                value={searchQuery} 
-                onChangeText={setSearchQuery} 
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchButton}>
-                  <MaterialCommunityIcons name="close-circle" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <TouchableOpacity style={styles.filterButton} onPress={() => setShowFilterModal(true)}>
-              <LinearGradient colors={colors.gradient.primary} style={styles.filterButtonGradient}>
-                <MaterialCommunityIcons name="tune" size={18} color="white" />
-                {selectedFilters.length > 0 && (
-                  <Badge size={16} style={styles.filterBadge}>{selectedFilters.length}</Badge>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        </Surface>
-      </Animated.View>
-
-      <FlatList
-        data={filteredConsultations}
-        key={viewMode} 
-        renderItem={renderConsultationCard}
-        keyExtractor={(item) => item.id.toString()}
-        style={styles.consultationsList}
-        contentContainerStyle={styles.consultationsListContent}
+      
+      {renderHeader()}
+      {renderTabs()}
+      
+     <Animated.ScrollView
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        numColumns={viewMode === 'grid' ? 2 : 1}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
         }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyState}>
-            <MaterialCommunityIcons name="calendar-search" size={80} color={colors.textTertiary} />
-            <Text style={styles.emptyStateTitle}>No consultations found</Text>
-            <Text style={styles.emptyStateText}>Try adjusting your search or schedule a new consultation</Text>
-            <TouchableOpacity 
-              style={styles.emptyStateButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <LinearGradient colors={colors.gradient.primary} style={styles.emptyStateButtonGradient}>
-                <MaterialCommunityIcons name="plus" size={20} color="white" />
-                <Text style={styles.emptyStateButtonText}>Schedule Consultation</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
-
-      <FAB 
-        style={[styles.fab, { backgroundColor: colors.secondary }]} 
-        icon="plus" 
-        onPress={() => setShowAddModal(true)} 
-        color="white" 
-      />
-
-      {/* Filter Modal */}
-      <Modal visible={showFilterModal} animationType="slide" transparent onRequestClose={() => setShowFilterModal(false)}>
-        <View style={styles.modalOverlay}>
-          <BlurView intensity={90} tint={Platform.OS === 'ios' ? 'light' : 'dark'} style={styles.modalBlur}>
-            <View style={styles.filterModal}>
-              <LinearGradient colors={colors.gradient.glass} style={styles.filterModalContent}>
-                <View style={styles.filterHeader}>
-                  <Text style={styles.filterTitle}>Filter & Sort</Text>
-                  <TouchableOpacity onPress={() => setShowFilterModal(false)} style={styles.closeButton}>
-                    <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView>
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Status</Text>
-                    <View style={styles.filterChips}>
-                      {consultationStatuses.map((status) => (
-                        <TouchableOpacity 
-                          key={status.id} 
-                          onPress={() => setSelectedFilters(prev => 
-                            prev.includes(status.id) 
-                              ? prev.filter(f => f !== status.id) 
-                              : [...prev, status.id]
-                          )}
-                        >
-                          <Chip 
-                            selected={selectedFilters.includes(status.id)} 
-                            mode={selectedFilters.includes(status.id) ? 'flat' : 'outlined'} 
-                            style={[
-                              styles.filterChip, 
-                              selectedFilters.includes(status.id) && { backgroundColor: status.color + '20' }
-                            ]} 
-                            textStyle={{ 
-                              color: selectedFilters.includes(status.id) ? status.color : colors.text 
-                            }}
-                          >
-                            {status.label}
-                          </Chip>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Consultation Type</Text>
-                    <View style={styles.filterChips}>
-                      {consultationTypes.map((type) => (
-                        <TouchableOpacity 
-                          key={type.id} 
-                          onPress={() => setSelectedFilters(prev => 
-                            prev.includes(type.id) 
-                              ? prev.filter(f => f !== type.id) 
-                              : [...prev, type.id]
-                          )}
-                        >
-                          <Chip 
-                            selected={selectedFilters.includes(type.id)} 
-                            mode={selectedFilters.includes(type.id) ? 'flat' : 'outlined'} 
-                            style={[
-                              styles.filterChip, 
-                              selectedFilters.includes(type.id) && { backgroundColor: colors.primary + '15' }
-                            ]} 
-                            textStyle={{ 
-                              color: selectedFilters.includes(type.id) ? colors.primary : colors.text 
-                            }}
-                          >
-                            {type.label}
-                          </Chip>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Priority</Text>
-                    <View style={styles.filterChips}>
-                      {priorityOptions.map((priority) => (
-                        <TouchableOpacity 
-                          key={priority.id} 
-                          onPress={() => setSelectedFilters(prev => 
-                            prev.includes(priority.id) 
-                              ? prev.filter(f => f !== priority.id) 
-                              : [...prev, priority.id]
-                          )}
-                        >
-                          <Chip 
-                            selected={selectedFilters.includes(priority.id)} 
-                            mode={selectedFilters.includes(priority.id) ? 'flat' : 'outlined'} 
-                            style={[
-                              styles.filterChip, 
-                              selectedFilters.includes(priority.id) && { backgroundColor: priority.color + '15' }
-                            ]} 
-                            textStyle={{ 
-                              color: selectedFilters.includes(priority.id) ? priority.color : colors.text 
-                            }}
-                          >
-                            {priority.label}
-                          </Chip>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.filterSection}>
-                    <Text style={styles.filterSectionTitle}>Sort By</Text>
-                    <View style={styles.sortOptions}>
-                      {[
-                        { id: 'date', label: 'Date', icon: 'calendar' },
-                        { id: 'priority', label: 'Priority', icon: 'flag' },
-                        { id: 'fee', label: 'Fee', icon: 'currency-inr' }
-                      ].map((sort) => (
-                        <TouchableOpacity 
-                          key={sort.id} 
-                          style={[styles.sortOption, sortBy === sort.id && styles.sortOptionSelected]} 
-                          onPress={() => setSortBy(sort.id)}
-                        >
-                          <MaterialCommunityIcons 
-                            name={sort.icon} 
-                            size={18} 
-                            color={sortBy === sort.id ? colors.primary : colors.textSecondary} 
-                          />
-                          <Text style={[styles.sortOptionText, sortBy === sort.id && styles.sortOptionTextSelected]}>
-                            {sort.label}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </ScrollView>
-
-                <View style={styles.filterActions}>
-                  <TouchableOpacity style={styles.clearFiltersButton} onPress={() => setSelectedFilters([])}>
-                    <Text style={styles.clearFiltersText}>Clear All</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.applyFiltersButton} onPress={() => setShowFilterModal(false)}>
-                    <LinearGradient colors={colors.gradient.primary} style={styles.applyFiltersGradient}>
-                      <Text style={styles.applyFiltersText}>Apply Filters</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              </LinearGradient>
-            </View>
-          </BlurView>
-        </View>
-      </Modal>
-
-      {/* Add Consultation Modal */}
-      <AddEditModal 
-        visible={showAddModal} 
-        onClose={() => { 
-          setShowAddModal(false); 
-          resetForm(); 
-        }} 
-        isEdit={false} 
-      />
-
-      {/* Edit Modal */}
-      <AddEditModal 
-        visible={showEditModal} 
-        onClose={() => { 
-          setShowEditModal(false); 
-          setEditForm(null); 
-        }} 
-        isEdit={true} 
-      />
-
-      {/* Consultation Details Modal */}
-      <ConsultationDetailsModal />
-
-      {/* Rating Modal */}
-      <RatingModal />
-
-      <Snackbar 
-        visible={snackbar.visible} 
-        onDismiss={() => setSnackbar({ visible: false, text: '' })} 
-        action={lastDeleted ? { label: 'Undo', onPress: undoDelete } : undefined}
       >
-        {snackbar.text}
-      </Snackbar>
+         {loading ? <View>
+                    <LinearGradient
+                      colors={colors.gradient.glass}
+                      style={styles.loadingGradient}
+                    >
+                      <ActivityIndicator size="large" color="black" />
+                    </LinearGradient>
+                  </View>:renderContent()}
+      </Animated.ScrollView>
+      
+      {/* Floating Action Button */}
+      <FAB
+        style={[
+          styles.fab,
+          { backgroundColor: colors.secondary }
+        ]}
+        icon="plus"
+        onPress={() => handleScheduleConsultation()}
+        label={activeTab === 'requests' ? 'New Request' : 'Schedule'}
+      />
+      
+      {renderScheduleModal()}
+      {renderRequestDialog()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: colors.background 
-  },
-  header: { 
-    position: 'relative', 
-    zIndex: 1 
-  },
-  headerGradient: { 
-    flex: 1, 
-    paddingTop: StatusBar.currentHeight + 10 || 54 
-  },
-  headerContent: { 
-    flex: 1, 
-    paddingHorizontal: 24, 
-    justifyContent: 'space-between' 
-  },
-  headerTop: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 20 
-  },
-  backButton: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    backgroundColor: 'rgba(255,255,255,0.15)', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  headerTitle: { 
-    color: 'white', 
-    fontSize: 24, 
-    fontWeight: '800', 
-    letterSpacing: -0.5 
-  },
-  headerActions: { 
-    flexDirection: 'row', 
-    gap: 12 
-  },
-  headerAction: { 
-    width: 40, 
-    height: 40, 
-    borderRadius: 20, 
-    backgroundColor: 'rgba(255,255,255,0.15)', 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  statsRow: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    backgroundColor: 'rgba(255,255,255,0.1)', 
-    borderRadius: 16, 
-    padding: 16, 
-    marginBottom: 10 
-  },
-  statItem: { 
-    alignItems: 'center', 
-    flex: 1 
-  },
-  statValue: { 
-    color: 'white', 
-    fontSize: 20, 
-    fontWeight: '800', 
-    marginBottom: 2 
-  },
-  statLabel: { 
-    color: 'rgba(255,255,255,0.8)', 
-    fontSize: 11, 
-    fontWeight: '600' 
-  },
-  statDivider: { 
-    width: 1, 
-    height: 30, 
-    backgroundColor: 'rgba(255,255,255,0.2)', 
-    marginHorizontal: 16 
-  },
-  searchContainer: { 
-    marginHorizontal: 24, 
-    marginTop: -20, 
-    marginBottom: 20, 
-    zIndex: 2 
-  },
-  searchSurface: { 
-    borderRadius: 16, 
-    elevation: 8, 
-    shadowColor: colors.cardShadow, 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.15, 
-    shadowRadius: 12 
-  },
-  searchBar: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 4, 
-    gap: 8 
-  },
-  searchInputContainer: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: colors.surfaceVariant, 
-    borderRadius: 12, 
-    paddingHorizontal: 16, 
-    height: 48 
-  },
-  searchIcon: { 
-    marginRight: 12 
-  },
-  searchInput: { 
-    flex: 1, 
-    fontSize: 16, 
-    color: colors.text, 
-    fontWeight: '500' 
-  },
-  clearSearchButton: { 
-    padding: 4 
-  },
-  filterButton: { 
-    position: 'relative' 
-  },
-  filterButtonGradient: { 
-    width: 48, 
-    height: 48, 
-    borderRadius: 12, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  filterBadge: { 
-    position: 'absolute', 
-    top: -2, 
-    right: -2, 
-    backgroundColor: colors.secondary 
-  },
-  consultationsList: { 
-    flex: 1 
-  },
-  consultationsListContent: { 
-    paddingHorizontal: 24, 
-    paddingBottom: 140 
-  },
-  consultationCard: { 
-    marginBottom: 16, 
-    borderRadius: 20, 
-    elevation: 6, 
-    shadowColor: colors.cardShadow, 
-    shadowOffset: { width: 0, height: 3 }, 
-    shadowOpacity: 0.12, 
-    shadowRadius: 8, 
-    borderWidth: 1, 
-    borderColor: 'rgba(255,255,255,0.8)' 
-  },
-  consultationCardGradient: { 
-    padding: 20, 
-    borderRadius: 20 
-  },
-  consultationHeader: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    marginBottom: 16 
-  },
-  consultationIconContainer: { 
-    marginRight: 16 
-  },
-  consultationIcon: { 
-    width: 48, 
-    height: 48, 
-    borderRadius: 14, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    elevation: 3 
-  },
-  consultationMainInfo: { 
-    flex: 1, 
-    marginRight: 12 
-  },
-  consultationTitleRow: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-start', 
-    justifyContent: 'space-between', 
-    marginBottom: 6 
-  },
-  consultationTitle: { 
-    fontSize: 17, 
-    fontWeight: '700', 
-    color: colors.text, 
-    lineHeight: 24, 
-    flex: 1, 
-    marginRight: 8 
-  },
-  priorityIndicator: { 
-    alignItems: 'center', 
-    justifyContent: 'center' 
-  },
-  priorityDot: { 
-    width: 8, 
-    height: 8, 
-    borderRadius: 4 
-  },
-  consultationLawyer: { 
-    fontSize: 14, 
-    color: colors.textSecondary, 
-    fontWeight: '600', 
-    marginBottom: 4 
-  },
-  consultationSpecialization: { 
-    fontSize: 12, 
-    color: colors.textTertiary, 
-    fontWeight: '500' 
-  },
-  moreButton: { 
-    padding: 4 
-  },
-  consultationMetaContainer: { 
-    marginBottom: 16 
-  },
-  consultationMetaRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    marginBottom: 12 
-  },
-  statusChip: { 
-    height: 28 
-  },
-  feeContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: colors.success + '15', 
-    paddingHorizontal: 12, 
-    paddingVertical: 6, 
-    borderRadius: 12 
-  },
-  consultationFee: { 
-    fontSize: 14, 
-    color: colors.success, 
-    fontWeight: '800', 
-    marginRight: 6 
-  },
-  timeContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    backgroundColor: colors.surfaceVariant, 
-    borderRadius: 12, 
-    padding: 12 
-  },
-  timeItem: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    flex: 1 
-  },
-  timeText: { 
-    fontSize: 12, 
-    color: colors.textSecondary, 
-    fontWeight: '600', 
-    marginLeft: 4 
-  },
-  consultationFooter: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingTop: 16, 
-    borderTopWidth: 1, 
-    borderTopColor: 'rgba(100,116,139,0.1)' 
-  },
-  footerLeft: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    flex: 1 
-  },
-  lawyerRatingContainer: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    marginRight: 16 
-  },
-  lawyerRatingText: { 
-    fontSize: 12, 
-    color: colors.textSecondary, 
-    fontWeight: '600', 
-    marginLeft: 4, 
-    marginRight: 6 
-  },
-  documentsInfo: { 
-    flexDirection: 'row', 
-    alignItems: 'center' 
-  },
-  documentsText: { 
-    fontSize: 12, 
-    color: colors.textSecondary, 
-    fontWeight: '600', 
-    marginLeft: 4 
-  },
-  footerRight: { 
-    alignItems: 'flex-end' 
-  },
-  quickActionButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    marginLeft: 8 
-  },
-  quickActionText: { 
-    fontSize: 11, 
-    color: 'white', 
-    fontWeight: '700', 
-    marginLeft: 4 
-  },
-  fab: { 
-    position: 'absolute', 
-    bottom: 24, 
-    right: 24, 
-    elevation: 8, 
-    shadowColor: colors.secondary, 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 8 
-  },
-  emptyState: { 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    paddingVertical: 80 
-  },
-  emptyStateTitle: { 
-    fontSize: 20, 
-    fontWeight: '700', 
-    color: colors.text, 
-    marginTop: 16, 
-    marginBottom: 8 
-  },
-  emptyStateText: { 
-    fontSize: 14, 
-    color: colors.textSecondary, 
-    textAlign: 'center', 
-    marginBottom: 24 
-  },
-  emptyStateButton: { 
-    borderRadius: 25 
-  },
-  emptyStateButtonGradient: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: 24, 
-    paddingVertical: 12, 
-    borderRadius: 25 
-  },
-  emptyStateButtonText: { 
-    color: 'white', 
-    fontSize: 16, 
-    fontWeight: '700', 
-    marginLeft: 8 
-  },
-  
-  // Modal Styles
-  modalContainer: {
+  container: {
     flex: 1,
-    backgroundColor: 'transparent'
+    backgroundColor: colors.background,
   },
-  modalGradient: {
-    flex: 1
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalHeader: {
+  loadingGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  headerContainer: {
+    position: 'relative',
+  },
+  header: {
     paddingTop: StatusBar.currentHeight + 20 || 64,
     paddingHorizontal: 24,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.08)'
+    paddingBottom: 24,
   },
-  modalHeaderContent: {
+  headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  modalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
-  modalHeaderCenter: {
+  headerTitle: {
     flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 16
   },
-  modalHeaderTitle: {
+  headerTitleText: {
+    color: 'white',
     fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-    textAlign: 'center'
+    fontWeight: '700',
   },
-  modalHeaderSubtitle: {
+  headerSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginTop: 2
+    fontWeight: '500',
+    marginTop: 2,
   },
-  modalEditButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary + '10',
+  headerAction: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
-  modalSaveButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary + '10',
-    justifyContent: 'center',
-    alignItems: 'center'
+  searchContainer: {
+    marginTop: 8,
   },
-  tabContainer: {
-    marginTop: 8
+  searchBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  tab: {
+  searchGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    borderRadius: 12
+    paddingVertical: 12,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  tabsContainer: {
+    backgroundColor: colors.surface,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  tabsContent: {
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  tab: {
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   tabActive: {
-    backgroundColor: colors.primary + '10'
+    elevation: 4,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  tabGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
     color: colors.textSecondary,
-    marginLeft: 6
+    fontWeight: '600',
   },
   tabTextActive: {
-    color: colors.primary
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 24
-  },
-  tabContent: {
-    paddingTop: 24
-  },
-  statusRow: {
-    flexDirection: 'row',
-    marginBottom: 20
-  },
-  statusCard: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4
-  },
-  statusCardContent: {
-    padding: 16,
-    alignItems: 'center'
-  },
-  statusIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8
-  },
-  statusLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    marginBottom: 4
-  },
-  statusValue: {
-    fontSize: 16,
-    fontWeight: '700'
-  },
-  detailsCard: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    padding: 20,
-    marginBottom: 20
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)'
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    flex: 1
-  },
-  detailValue: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right'
-  },
-  valueText: {
-    color: colors.success,
-    fontWeight: '800'
-  },
-  detailChipContainer: {
-    flex: 1,
-    alignItems: 'flex-end'
-  },
-  detailChip: {
-    height: 28
-  },
-  descriptionCard: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    padding: 20,
-    marginBottom: 20
-  },
-  descriptionText: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text
-  },
-  actionButtonsContainer: {
-    marginBottom: 20
-  },
-  primaryActionButton: {
-    borderRadius: 16,
-    marginBottom: 12,
-    overflow: 'hidden'
-  },
-  actionButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
     color: 'white',
-    marginLeft: 8
+    fontWeight: '700',
   },
-  secondaryActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  tabBadge: {
+    backgroundColor: colors.textTertiary,
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 16,
-    borderWidth: 2,
-    marginBottom: 12
-  },
-  lawyerCard: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    padding: 20,
-    marginBottom: 20
-  },
-  lawyerHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20
+    marginLeft: 4,
   },
-  lawyerAvatar: {
-    marginRight: 16
+  tabBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
-  lawyerInfo: {
-    flex: 1
+  tabBadgeText: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: '700',
   },
-  lawyerNameRow: {
-    flexDirection: 'row',
+  tabBadgeTextActive: {
+    color: 'white',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 24,
+    paddingBottom: 100,
+  },
+  contentContainer: {
+    gap: 16,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8
+    paddingVertical: 80,
   },
-  lawyerName: {
+  emptyStateTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: colors.text,
-    marginRight: 8
+    marginTop: 16,
+    textAlign: 'center',
   },
-  lawyerSpecialization: {
-    fontSize: 16,
+  emptyStateSubtitle: {
+    fontSize: 14,
     color: colors.textSecondary,
-    fontWeight: '600',
-    marginBottom: 8
+    marginTop: 8,
+    textAlign: 'center',
+    maxWidth: 280,
   },
-  lawyerRating: {
+  clientCard: {
+    borderRadius: 20,
+    elevation: 6,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  },
+  clientCardContent: {
+    padding: 20,
+  },
+  clientHeader: {
     flexDirection: 'row',
-    alignItems: 'center'
+    marginBottom: 20,
   },
-  ratingText: {
+  clientAvatarSection: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  clientAvatarGradient: {
+    borderRadius: 24,
+    padding: 2,
+  },
+  clientAvatar: {
+    backgroundColor: 'transparent',
+  },
+  clientAvatarLabel: {
+    color: colors.primary,
+    fontWeight: '700',
+    fontSize: 18,
+  },
+  clientStatusIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  clientInfo: {
+    flex: 1,
+  },
+  clientName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  clientEmail: {
     fontSize: 14,
     color: colors.textSecondary,
-    fontWeight: '600',
-    marginLeft: 4
-  },
-  experienceText: {
-    fontSize: 14,
-    color: colors.textTertiary,
     fontWeight: '500',
-    marginLeft: 4
+    marginBottom: 8,
   },
-  contactInfo: {
+  clientMeta: {
+    gap: 8,
+  },
+  clientMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  clientMetaText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  clientActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  clientActionButton: {
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  clientActionGradient: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clientStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)',
-    paddingTop: 16
+    borderTopColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  clientStat: {
+    alignItems: 'center',
+  },
+  clientStatValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  clientStatLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  priorityIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  clientFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  lastContactText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  viewDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewDetailsText: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  consultationCard: {
+    borderRadius: 20,
+    elevation: 6,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  },
+  consultationCardContent: {
+    padding: 20,
+  },
+  consultationHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  consultationInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  consultationClient: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  consultationSubject: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  consultationStatus: {
+    alignSelf: 'flex-start',
+  },
+  statusChip: {
+    height: 28,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+  },
+  consultationDetails: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  consultationDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  consultationDetailText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  consultationNotes: {
+    backgroundColor: colors.surfaceVariant,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  notesLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '500',
+    lineHeight: 18,
+  },
+  consultationActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  consultationAction: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  consultationActionGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 8,
+  },
+  consultationActionText: {
+    color: 'white',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  requestCard: {
+    borderRadius: 20,
+    elevation: 6,
+    shadowColor: colors.cardShadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.warning,
+  },
+  requestCardContent: {
+    padding: 20,
+  },
+  requestHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  requestInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  requestClient: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  requestSubject: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  requestMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  categoryChip: {
+    height: 24,
+  },
+  categoryChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  urgencyIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  urgencyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  urgencyText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  requestBudget: {
+    alignItems: 'flex-end',
+  },
+  budgetAmount: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.secondary,
+    marginBottom: 2,
+  },
+  budgetLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  requestDetails: {
+    marginBottom: 16,
+  },
+  requestDescription: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  requestPreferences: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  requestPreferenceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requestPreferenceText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  requestContact: {
+    gap: 8,
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 12,
-    marginBottom: 8
+    gap: 8,
   },
   contactText: {
-    fontSize: 14,
-    color: colors.text,
-    fontWeight: '600',
-    marginLeft: 12
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 20
-  },
-  documentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    elevation: 1,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    marginBottom: 12
-  },
-  documentIcon: {
-    marginRight: 16
-  },
-  documentInfo: {
-    flex: 1
-  },
-  documentName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2
-  },
-  documentSize: {
-    fontSize: 12,
-    color: colors.textSecondary
-  },
-  documentAction: {
-    padding: 8
-  },
-  noDocumentsText: {
-    textAlign: 'center',
-    fontSize: 16,
+    fontSize: 13,
     color: colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 40
+    fontWeight: '500',
   },
-  reminderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    elevation: 1,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    marginBottom: 12
-  },
-  reminderIcon: {
-    marginRight: 16
-  },
-  reminderInfo: {
-    flex: 1
-  },
-  reminderText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2
-  },
-  reminderTime: {
-    fontSize: 12,
-    color: colors.textSecondary
-  },
-  reminderStatus: {
-    alignItems: 'flex-end'
-  },
-  noRemindersText: {
-    textAlign: 'center',
-    fontSize: 16,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 40
-  },
-  
-  // Form Styles
-  formContainer: {
-    paddingTop: 24
-  },
-  formSection: {
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    padding: 20,
-    marginBottom: 20
-  },
-  formSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16
-  },
-  inputContainer: {
-    marginBottom: 16
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8
-  },
-  textInput: {
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: colors.text,
-    borderWidth: 1,
-    borderColor: 'transparent'
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top'
-  },
-  selectorButton: {
-    backgroundColor: colors.surfaceVariant,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  requestFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent'
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(100, 116, 139, 0.1)',
   },
-  selectorContent: {
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  selectorText: {
-    fontSize: 16,
-    color: colors.text,
+  requestTime: {
+    fontSize: 12,
+    color: colors.textTertiary,
     fontWeight: '500',
-    marginLeft: 12
   },
-  selectorOptions: {
-    backgroundColor: colors.surface,
+  requestActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  requestActionButton: {
     borderRadius: 12,
-    marginTop: 8,
-    elevation: 4,
-    shadowColor: colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8
+    overflow: 'hidden',
   },
-  selectorOption: {
+  requestActionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)'
-  },
-  selectorOptionActive: {
-    backgroundColor: colors.primary + '10'
-  },
-  selectorOptionText: {
-    fontSize: 16,
-    color: colors.text,
-    fontWeight: '500',
-    marginLeft: 12
-  },
-  rowContainer: {
-    flexDirection: 'row'
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    padding: 24,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)'
-  },
-  footerButton: {
-    flex: 1,
-    borderRadius: 12,
-    height: 48,
     justifyContent: 'center',
-    alignItems: 'center'
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 4,
   },
-  cancelButton: {
-    backgroundColor: colors.surfaceVariant
+  requestActionText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  cancelButtonText: {
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    elevation: 8,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  modalHeader: {
+    paddingTop: StatusBar.currentHeight + 20 || 64,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+  },
+  modalHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalSaveButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+  },
+  modalSaveText: {
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
-    color: colors.textSecondary
   },
-  saveButton: {
-    overflow: 'hidden'
-  },
-  saveButtonGradient: {
+  modalContent: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: 'white'
-  },
-
-  // Rating Modal Styles
-  ratingModalOverlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)'
-  },
-  ratingModalContainer: {
-    width: width * 0.9,
-    maxWidth: 400
-  },
-  ratingModalContent: {
-    borderRadius: 20,
     padding: 24,
-    alignItems: 'center'
   },
-  ratingModalTitle: {
-    fontSize: 20,
+  formSection: {
+    marginBottom: 20,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 20,
+  },
+  formHalf: {
+    flex: 1,
+  },
+  formLabel: {
+    fontSize: 14,
+    color: colors.text,
     fontWeight: '600',
     marginBottom: 8,
-    textAlign: 'center',
-    color: colors.text
   },
-  ratingModalSubtitle: {
-    fontSize: 16,
-    fontWeight: '400',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-    color: colors.textSecondary
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    marginBottom: 32,
-    gap: 8
-  },
-  starButton: {
-    padding: 4
-  },
-  ratingActions: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12
-  },
-  ratingCancelButton: {
-    flex: 1,
-    paddingVertical: 12,
+  formInput: {
+    borderWidth: 1,
+    borderColor: colors.textTertiary,
     borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceVariant
+    justifyContent: 'space-between',
   },
-  ratingCancelButtonText: {
+  formTextArea: {
+    height: 100,
+    textAlignVertical: 'top',
+    paddingTop: 12,
+  },
+  dateText: {
     fontSize: 16,
+    color: colors.text,
     fontWeight: '500',
-    color: colors.textSecondary
   },
-  ratingSubmitButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center'
+  radioGroup: {
+    flexDirection: 'row',
+    gap: 16,
   },
-  ratingSubmitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600'
+  radioOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-
-  // Filter Modal Styles
-  modalOverlay: { 
-    flex: 1, 
-    justifyContent: 'flex-end' 
+  radioText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
   },
-  modalBlur: { 
-    flex: 1, 
-    justifyContent: 'flex-end' 
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
   },
-  filterModal: { 
-    maxHeight: height * 0.8, 
-    borderTopLeftRadius: 24, 
-    borderTopRightRadius: 24, 
-    overflow: 'hidden' 
+  checkboxText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
   },
-  filterModalContent: { 
-    flex: 1, 
-    padding: 24 
+  requestDialog: {
+    borderRadius: 20,
+    backgroundColor: colors.surface,
   },
-  filterHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginBottom: 24, 
-    paddingBottom: 16, 
-    borderBottomWidth: 1, 
-    borderBottomColor: 'rgba(100,116,139,0.1)' 
-  },
-  filterTitle: { 
-    fontSize: 22, 
-    fontWeight: '800', 
-    color: colors.text 
-  },
-  closeButton: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 16, 
-    backgroundColor: colors.surfaceVariant, 
-    justifyContent: 'center', 
-    alignItems: 'center' 
-  },
-  filterSection: { 
-    marginBottom: 28 
-  },
-  filterSectionTitle: { 
-    fontSize: 16, 
-    fontWeight: '700', 
-    color: colors.text, 
-    marginBottom: 12 
-  },
-  filterChips: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 8 
-  },
-  filterChip: { 
-    marginBottom: 8, 
-    height: 36 
-  },
-  sortOptions: { 
-    gap: 8 
-  },
-  sortOption: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    padding: 16, 
-    borderRadius: 12, 
-    backgroundColor: colors.surfaceVariant 
-  },
-  sortOptionSelected: { 
-    backgroundColor: colors.primary + '15', 
-    borderWidth: 1, 
-    borderColor: colors.primary + '40' 
-  },
-  sortOptionText: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: colors.textSecondary, 
-    marginLeft: 12 
-  },
-  sortOptionTextSelected: { 
-    color: colors.primary 
-  },
-  filterActions: { 
-    flexDirection: 'row', 
-    gap: 12, 
-    paddingTop: 20, 
-    borderTopWidth: 1, 
-    borderTopColor: 'rgba(100,116,139,0.1)' 
-  },
-  clearFiltersButton: { 
-    flex: 1, 
-    padding: 16, 
-    borderRadius: 16, 
-    backgroundColor: colors.surfaceVariant, 
-    alignItems: 'center' 
-  },
-  clearFiltersText: { 
-    fontSize: 14, 
-    fontWeight: '700', 
-    color: colors.textSecondary 
-  },
-  applyFiltersButton: { 
-    flex: 2, 
-    borderRadius: 16, 
-    overflow: 'hidden' 
-  },
-  applyFiltersGradient: { 
-    padding: 16, 
-    alignItems: 'center' 
-  },
-  applyFiltersText: { 
-    fontSize: 14, 
+  dialogTitle: {
+    fontSize: 20,
     fontWeight: '700',
-    color: 'white' 
+    color: colors.text,
+  },
+  dialogText: {
+    fontSize: 14,
+    color: colors.text,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  dialogLabel: {
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  dialogDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    lineHeight: 20,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(100, 116, 139, 0.1)',
+  },
+  dialogActions: {
+    gap: 12,
+  },
+  dialogButton: {
+    borderRadius: 12,
+  },
+  dialogButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
