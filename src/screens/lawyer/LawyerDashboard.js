@@ -32,7 +32,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { SCREEN_NAMES } from '../../utils/constants';
 import { getUserCases } from '../../store/caseSlice';
-
+import {addSubtask} from '../../store/caseSlice';
+import { getAllUsers } from '../../store/userSlice';
 const { width, height } = Dimensions.get('window');
 
 // Ultra-premium color palette with sophisticated gradients
@@ -75,6 +76,7 @@ export default function LawyerDashboard() {
   const [goalPeriod, setGoalPeriod] = useState('monthly');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
   // Memoized calculations for performance
@@ -95,7 +97,7 @@ export default function LawyerDashboard() {
     );
 
     const totalActiveValue = cases
-    .filter(c => c.status === "active" && user?.uid === c.lawyerId)
+    .filter(c =>  user?.uid === c.lawyerId)
     .reduce((total, c) => {
       const caseValue = parseFloat(
         String(c.value || "0").replace(/[₹,]/g, "")
@@ -119,6 +121,12 @@ export default function LawyerDashboard() {
     };
   }, [cases]);
 
+    useEffect(() => {
+    if (user?.uid && user?.role) {
+      fetchCases();
+    }
+  }, [user]);
+
   const CalendarModal = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -126,6 +134,9 @@ export default function LawyerDashboard() {
   const [taskDescription, setTaskDescription] = useState('');
   const [taskPriority, setTaskPriority] = useState('medium');
   const [selectedCase, setSelectedCase] = useState(null);
+  const [assignedTo, setAssignedTo] = useState('');
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [category,setCategory] = useState('');
 
   // Function to get all events/tasks for a specific date
   const getEventsForDate = (date) => {
@@ -134,7 +145,7 @@ export default function LawyerDashboard() {
     
     // Add case hearings
     cases.forEach(caseItem => {
-      if (caseItem.nextHearing === dateStr) {
+      if (caseItem.nextHearing === dateStr && caseItem.status !== 'completed') {
         events.push({
           id: `hearing-${caseItem.id}`,
           type: 'hearing',
@@ -147,9 +158,10 @@ export default function LawyerDashboard() {
       }
       
       // Add subtasks with deadlines
+      console.log(caseItem.subtasks,'subtaskkkkkkkkkkkkkkkkkkkk')
       if (caseItem.subtasks) {
         caseItem.subtasks.forEach(subtask => {
-          if (subtask.dueDate === dateStr && !subtask.completed) {
+          if (subtask.dueDate === dateStr && subtask.status !== 'completed' ) {
             events.push({
               id: `subtask-${subtask.id}`,
               type: 'subtask',
@@ -168,13 +180,13 @@ export default function LawyerDashboard() {
 
   // Function to check if a date has events
   const hasEvents = (day, month, year) => {
-    const date = new Date(year, month, day);
+    const date =  new Date(Date.UTC(year, month, day));
     return getEventsForDate(date).length > 0;
   };
 
   // Function to get event indicators for a date
   const getEventIndicators = (day, month, year) => {
-    const date = new Date(year, month, day);
+    const date =  new Date(Date.UTC(year, month, day));
     const events = getEventsForDate(date);
     
     const indicators = {
@@ -188,15 +200,24 @@ export default function LawyerDashboard() {
   };
 
   const handleCreateTask = () => {
-    // Your task creation logic here
-    console.log('Creating task:', {
-      title: taskTitle,
-      description: taskDescription,
-      priority: taskPriority,
-      dueDate: selectedDate,
-      caseId: selectedCase?.id
-    });
-    
+    // Dispatch action to add subtask
+    dispatch(addSubtask({
+      caseId: selectedCase?.id,
+      subtask: {
+        id: `st_${Date.now()}`,
+        title: taskTitle,
+        description: taskDescription,
+        priority: taskPriority,
+        assignedTo: assignedTo,
+        category: category,
+        completedAt: null,
+        status: 'pending',
+        createdAt: new Date().toISOString().split('T')[0],
+        createdBy: user?.uid,
+        dueDate: selectedDate.toISOString().split('T')[0] // Store as YYYY-MM-DD
+      }
+    }));
+
     // Reset form and close modal
     setTaskTitle('');
     setTaskDescription('');
@@ -232,7 +253,7 @@ export default function LawyerDashboard() {
     };
     
     const selectDate = (day) => {
-      const newDate = new Date(year, month, day);
+      const newDate = new Date(Date.UTC(year, month, day));
       setSelectedDate(newDate);
     };
     
@@ -249,7 +270,7 @@ export default function LawyerDashboard() {
     };
     
     const isPastDate = (day) => {
-      const checkDate = new Date(year, month, day);
+      const checkDate =  new Date(Date.UTC(year, month, day));
       return checkDate < new Date(today.getFullYear(), today.getMonth(), today.getDate());
     };
     
@@ -418,6 +439,30 @@ export default function LawyerDashboard() {
     );
   };
 
+  const handleInputChange = (text) => {
+    setAssignedTo(text);
+
+    if (!selectedCase || !text.trim()) {
+      setFilteredUsers([]); // nothing typed → hide list
+      return;
+    }
+
+    const caseTeamIds = selectedCase.team || [];
+
+    const matches = users.filter(user =>
+      caseTeamIds.includes(user.uid) &&
+      user.displayName?.toLowerCase().includes(text.toLowerCase())
+    );
+
+    // If no matches, store a "not found" placeholder
+    if (matches.length === 0) {
+      setFilteredUsers([{ uid: "not-found", displayName: "No users found" }]);
+    } else {
+      setFilteredUsers(matches.slice(0, 5)); // limit to 5
+    }
+  };
+
+
   return (
     <Modal
       visible={showCalendarModal}
@@ -493,6 +538,37 @@ export default function LawyerDashboard() {
                 placeholderTextColor={colors.textTertiary}
               />
             </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Assign to Case</Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.casesContainer}
+              >
+                
+                {cases.slice(0, 5).map((caseItem) => (
+                  <TouchableOpacity
+                    key={caseItem.id}
+                    style={[
+                      styles.caseChip,
+                      selectedCase?.id === caseItem.id && styles.caseChipActive
+                    ]}
+                    onPress={() => setSelectedCase(caseItem)}
+                  >
+                    <Text style={[
+                      styles.caseChipText,
+                      selectedCase?.id === caseItem.id && styles.caseChipTextActive
+                    ]}>
+                      {caseItem.title.length > 20 
+                        ? caseItem.title.substring(0, 20) + '...' 
+                        : caseItem.title
+                      }
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Description</Text>
@@ -506,6 +582,45 @@ export default function LawyerDashboard() {
                 numberOfLines={3}
               />
             </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Assign To</Text>
+              <TextInput
+                style={styles.textInput}
+                value={assignedTo}
+                onChangeText={handleInputChange}
+                placeholder="Add team memeber..."
+                placeholderTextColor={colors.textTertiary}
+              />
+            </View>
+            {filteredUsers.length > 0 && (
+              <View
+                style={{
+                  backgroundColor: 'white',
+                  borderRadius: 6,
+                  elevation: 3,
+                  maxHeight: 150,
+                }}
+              >
+                {filteredUsers.map((user, index) => (
+                  <TouchableOpacity
+                    key={`${user.uid}-member-${index}`}
+                    onPress={() => {
+                      setAssignedTo(user.displayName);
+                      setFilteredUsers([]);
+                    }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderBottomWidth: index !== filteredUsers.length - 1 ? 1 : 0,
+                      borderBottomColor: '#eee'
+                    }}
+                  >
+                    <Text style={{ color: colors.textPrimary }}>{user.displayName}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Priority</Text>
@@ -535,51 +650,29 @@ export default function LawyerDashboard() {
                 ))}
               </View>
             </View>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Assign to Case (Optional)</Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.casesContainer}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.caseChip,
-                    !selectedCase && styles.caseChipActive
-                  ]}
-                  onPress={() => setSelectedCase(null)}
-                >
-                  <Text style={[
-                    styles.caseChipText,
-                    !selectedCase && styles.caseChipTextActive
-                  ]}>
-                    General Task
-                  </Text>
-                </TouchableOpacity>
-                
-                {cases.slice(0, 5).map((caseItem) => (
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Category</Text>
+              <View style={styles.priorityContainer}>
+                {['hearing', 'drafting', 'filing', 'review', 'meeting', 'other'].map((priority) => (
                   <TouchableOpacity
-                    key={caseItem.id}
-                    style={[
-                      styles.caseChip,
-                      selectedCase?.id === caseItem.id && styles.caseChipActive
-                    ]}
-                    onPress={() => setSelectedCase(caseItem)}
+                    key={priority}
+                    onPress={() => setCategory(priority )}
                   >
-                    <Text style={[
-                      styles.caseChipText,
-                      selectedCase?.id === caseItem.id && styles.caseChipTextActive
-                    ]}>
-                      {caseItem.title.length > 20 
-                        ? caseItem.title.substring(0, 20) + '...' 
-                        : caseItem.title
-                      }
-                    </Text>
+                    <Chip
+                      selected={category === priority}
+                      style={[
+                        styles.categoryChip,
+                        category === priority && styles.categoryChipSelected
+                      ]}
+                    >
+                      {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                    </Chip>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             </View>
+            
           </Surface>
         </ScrollView>
       </View>
@@ -640,12 +733,6 @@ export default function LawyerDashboard() {
 
     return Object.values(monthlyData);
   }, [cases]);
-
-  useEffect(() => {
-    if (user?.uid && user?.role) {
-      fetchCases();
-    }
-  }, [user]);
   
   const fetchCases = async () => {
     try {
@@ -654,7 +741,9 @@ export default function LawyerDashboard() {
         userId: user.uid, 
         userRole: user.role 
       })).unwrap();
-      
+
+      const usersData = await dispatch(getAllUsers()).unwrap();
+      setUsers(usersData || []);
       setCases(casesData || []);
       console.log('Fetched cases:', casesData);
     } catch (error) {
@@ -1242,9 +1331,9 @@ export default function LawyerDashboard() {
             contentContainerStyle={styles.filterContainer}
             style={styles.filterScrollView}
           >
-            {filterButtons.map((filter) => (
+            {filterButtons.map((filter,index) => (
               <TouchableOpacity
-                key={filter.key}
+                key={index}
                 style={[
                   styles.filterChip,
                   activeFilter === filter.key && styles.filterChipActive
@@ -2565,4 +2654,26 @@ const styles = StyleSheet.create({
   caseChipTextActive: {
     color: colors.primary,
   },
+    // Category Chips
+  categoryChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  categoryChip: {
+    marginBottom: 4
+  },
+  categoryChipSelected: {
+    backgroundColor: colors.primary + '15'
+  },
+    formGroup: {
+    marginBottom: 20,
+    marginTop: 20
+  },
+  formLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8
+  }
 });

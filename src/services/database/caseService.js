@@ -109,7 +109,7 @@ function convertCaseData(docSnap) {
               ...subtask,
               createdAt: timestampToISO(subtask.createdAt),
               updatedAt: timestampToISO(subtask.updatedAt),
-              dueDate: timestampToISO(subtask.dueDate)
+              dueDate: subtask.dueDate
             };
           })
         : [],
@@ -157,6 +157,29 @@ function serializeTimestamps(data) {
   
   return result;
 }
+
+  async function addTimelineEntry(caseId, { title, description, type = 'custom', status = 'completed' }) {
+    if (!caseId) throw new Error('Case ID is required');
+
+    const user = auth.currentUser;
+
+    const timelineEvent = {
+      id: `t_${Date.now()}`,
+      type,
+      title,
+      description,
+      date: new Date().toISOString().split('T')[0],
+      status,
+      createdBy: user?.displayName || 'Current User'
+    };
+
+    await updateDoc(doc(db, 'cases', caseId), {
+      timeline: arrayUnion(timelineEvent),
+      updatedAt: serverTimestamp()
+    });
+  }
+
+
 
 class CaseService {
   /**
@@ -475,30 +498,20 @@ class CaseService {
       if (!caseId) throw new Error('Case ID is required');
       if (!subtask || !subtask.title) throw new Error('Subtask title is required');
 
-      const subtaskData = {
-        title: subtask.title,
-        status: subtask.status || 'pending',
-        priority: subtask.priority || 'normal',
-        dueDate: subtask.dueDate ? Timestamp.fromDate(new Date(subtask.dueDate)) : null,
-        assignedTo: subtask.assignedTo || null,
-        notes: subtask.notes || '',
-        createdAt: serverTimestamp(),
+      const subtaskData = subtask;
+
+      await updateDoc(doc(db, 'cases', caseId), {
+        subtasks: arrayUnion(subtaskData),
         updatedAt: serverTimestamp()
-      };
-
-      const subtaskRef = await addDoc(
-        collection(db, 'cases', caseId, 'subtasks'),
-        subtaskData
-      );
-
-      // Update parent case
-      await updateDoc(doc(db, 'cases', caseId), { 
-        updatedAt: serverTimestamp() 
       });
 
+
+      await addTimelineEntry(caseId, {title:"Subtask Created", description: `New subtask "${subtaskData.title}" has been created`
+      });
+
+
       return { 
-        success: true, 
-        subtaskId: subtaskRef.id 
+        success: true
       };
     } catch (error) {
       console.error('Error creating subtask:', error);

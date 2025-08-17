@@ -1971,7 +1971,7 @@ export default function CaseManagement({ navigation }) {
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>Category</Text>
                   <View style={styles.categoryChips}>
-                    {['research', 'drafting', 'filing', 'review', 'meeting', 'other'].map((category) => (
+                    {['research', 'hearing', 'drafting', 'filing', 'review', 'meeting', 'other'].map((category) => (
                       <TouchableOpacity
                         key={category}
                         onPress={() => setSubtaskForm(prev => ({ ...prev, category }))}
