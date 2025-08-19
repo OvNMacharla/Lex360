@@ -1,7 +1,8 @@
 export const USER_ROLES = {
   LAWYER: 'lawyer',
   CLIENT: 'client',
-  ADMIN: 'admin'
+  ADMIN: 'admin',
+  FIRM: 'firm'
 };
 
 export const SCREEN_NAMES = {
@@ -18,13 +19,23 @@ export const SCREEN_NAMES = {
   // Lawyer Screens
   LAWYER_DASHBOARD: 'LawyerDashboard',
   CASE_MANAGEMENT: 'CaseManagement',
+  FIRM_DASHBOARD: 'LawFirmDashboard',
   
   // Client Screens
   CLIENT_DASHBOARD: 'ClientDashboard',
   LEGAL_DOCUMENTS: 'LegalDocuments',
   FIND_LAWYERS: 'FindLawyers',
   MY_CONSULTATIONS: 'MyConsultations',
-  
+
+  //Firm Screens
+  LAWYER_MANAGEMENT: 'LawyerManagement',
+  CLIENT_MANAGEMENT: 'ClientManagement', 
+  PRACTICE_AREAS: 'PracticeAreas',
+  CASE_OVERSIGHT: 'CaseOversight',
+  UTILIZATION_RATE: 'UtilizationRate',
+  REPORTS: 'Reports',
+  FIRM_SETTINGS: 'FirmSettings',
+  CLIENT_PORTAL:'ClientDetails',
   
   // Shared Screens
   AI_CHAT: 'AIChat',

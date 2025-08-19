@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  FlatList,
   TextInput,
 } from 'react-native';
 import { 
@@ -29,6 +30,7 @@ import { useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
+import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
 import { BlurView } from 'expo-blur';
 import { SCREEN_NAMES } from '../../utils/constants';
 import { getUserCases } from '../../store/caseSlice';
@@ -733,10 +735,10 @@ export default function LawyerDashboard() {
 
     return Object.values(monthlyData);
   }, [cases]);
-  
+
   const fetchCases = async () => {
     try {
-      setLoading(true);
+        setLoading(true);
       const casesData = await dispatch(getUserCases({ 
         userId: user.uid, 
         userRole: user.role 
@@ -751,7 +753,7 @@ export default function LawyerDashboard() {
       setCases([]);
     } finally {
       setLoading(false);
-    }
+        }
   };
 
   const handleRefresh = async () => {
@@ -759,6 +761,38 @@ export default function LawyerDashboard() {
     await fetchCases();
     setRefreshing(false);
   };
+
+  const getInvolvedClients = (users, cases) => {
+  return users
+    .filter(user => user.role === 'client') // only clients
+    .map(user => {
+      const clientCases = cases.filter(c => c.client === user.displayName);
+
+      // derive priority: highest among client’s cases
+      let priority = 'low';
+      if (clientCases.some(c => c.priority === 'high')) priority = 'high';
+      else if (clientCases.some(c => c.priority === 'medium')) priority = 'medium';
+
+      return {
+        id: user.uid,
+        name: user.displayName, // from displayName
+        email: user.email,
+        phone: user.phoneNumber || 'N/A', // will update later when available
+        avatar: user.displayName?.charAt(0).toUpperCase(),
+        status: 'active', // default
+        caseCount: clientCases.length,
+        totalValue: clientCases.reduce((sum, c) => sum + Number(c.value || 0), 0),
+        lastContact: clientCases.length > 0 
+          ? clientCases[0].updatedAt 
+          : user.updatedAt,
+        category: clientCases[0]?.type || 'General', // from case type
+        priority, // derived logic
+        location: 'N/A' // will add later
+      };
+    });
+};
+
+
 
   const stats = [
     { 
@@ -770,6 +804,7 @@ export default function LawyerDashboard() {
       gradient: colors.gradient.primary,
       glowColor: colors.primary,
       screen: SCREEN_NAMES.CASE_MANAGEMENT,
+      resource:cases,
       description: 'This month'
     },
     { 
@@ -802,6 +837,7 @@ export default function LawyerDashboard() {
       gradient: colors.gradient.info,
       glowColor: colors.info,
       screen: SCREEN_NAMES.MY_CONSULTATIONS,
+      resource: getInvolvedClients(users, cases),
       description: 'Current clients'
     },
   ];
@@ -906,15 +942,19 @@ export default function LawyerDashboard() {
     },
   ];
 
-  const handleAction = (screenName) => {
+  const handleAction = (screenName,resource) => {
     if (screenName) {
-      navigation.navigate('InApp', { screen: screenName });
+      navigation.navigate('InApp', { 
+      screen: screenName,
+      params: resource ? { resource } : undefined
+    });
+
     }
   };
 
   const handleStatCardPress = (stat) => {
     if (stat.screen) {
-      handleAction(stat.screen);
+      handleAction(stat.screen,stat?.resource);
     }
   };
 
@@ -1061,19 +1101,58 @@ export default function LawyerDashboard() {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <LinearGradient
-          colors={colors.gradient.primary}
-          style={styles.loadingGradient}
-        >
-          <ActivityIndicator size="large" color="white" />
-          <Text style={styles.loadingText}>Loading your dashboard...</Text>
-        </LinearGradient>
+const SkeletonCaseCard = () => (
+  <View style={styles.caseCard}>
+    {/* Top row */}
+    <View style={styles.caseHeader}>
+      <ShimmerPlaceHolder
+        LinearGradient={LinearGradient}
+        style={{ width: 60, height: 60, borderRadius: 12 }}
+      />
+      <View style={{ marginLeft: 12, flex: 1 }}>
+        <ShimmerPlaceHolder
+          LinearGradient={LinearGradient}
+          style={{ width: '70%', height: 16, borderRadius: 4, marginBottom: 8 }}
+        />
+        <ShimmerPlaceHolder
+          LinearGradient={LinearGradient}
+          style={{ width: '50%', height: 12, borderRadius: 4 }}
+        />
       </View>
-    );
-  }
+    </View>
+
+    {/* Meta info row */}
+    <View style={styles.caseMeta}>
+      <ShimmerPlaceHolder
+        LinearGradient={LinearGradient}
+        style={{ width: 80, height: 12, borderRadius: 4, marginRight: 8 }}
+      />
+      <ShimmerPlaceHolder
+        LinearGradient={LinearGradient}
+        style={{ width: 60, height: 12, borderRadius: 4 }}
+      />
+    </View>
+
+    {/* Progress bar */}
+    <ShimmerPlaceHolder
+      LinearGradient={LinearGradient}
+      style={{ width: '100%', height: 10, borderRadius: 5, marginTop: 12 }}
+    />
+  </View>
+);
+
+if (loading) {
+  return (
+    <FlatList
+      data={[1, 2, 3, 4, 5, 6]} // number of skeleton cards
+      keyExtractor={(item) => item.toString()}
+      renderItem={() => <SkeletonCaseCard />}
+      numColumns={2}
+      columnWrapperStyle={ {justifyContent: 'space-between'}}
+      contentContainerStyle={{ padding: 16 }}
+    />
+  );
+}
 
   return (
     <View style={styles.container}>

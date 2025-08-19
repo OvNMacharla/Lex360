@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -33,12 +33,13 @@ import {
   RadioButton,
   Checkbox
 } from 'react-native-paper';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { createConsultation, getUserConsultations, selectConsultations } from '../../store/consultationSlice';
 
 const { width, height } = Dimensions.get('window');
 
@@ -76,12 +77,13 @@ export default function MyConsultations() {
   const { user } = useSelector((state) => state.auth);
   const navigation = useNavigation();
   const dispatch = useDispatch();
+  const route = useRoute();
   
   // State management
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('clients'); // clients, consultations, requests
-  const [clients, setClients] = useState([]);
+  const [clients, setClients] = useState(resource?resource:[]);
   const [consultations, setConsultations] = useState([]);
   const [consultationRequests, setConsultationRequests] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
@@ -91,7 +93,7 @@ export default function MyConsultations() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [scrollY] = useState(new Animated.Value(0));
-  
+  const { resource } = route.params || {};
   // Schedule consultation form state
   const [scheduleForm, setScheduleForm] = useState({
     clientId: '',
@@ -107,97 +109,6 @@ export default function MyConsultations() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-
-  // Mock data - Replace with actual API calls
-  const mockClients = [
-    {
-      id: '1',
-      name: 'Reliance Industries Ltd.',
-      email: 'legal@reliance.com',
-      phone: '+91 98765 43210',
-      avatar: 'R',
-      status: 'active',
-      caseCount: 5,
-      totalValue: 1500000,
-      lastContact: '2025-08-15',
-      category: 'Corporate',
-      priority: 'high',
-      location: 'Mumbai, Maharashtra'
-    },
-    {
-      id: '2',
-      name: 'Greenfield Society',
-      email: 'admin@greenfield.org',
-      phone: '+91 87654 32109',
-      avatar: 'G',
-      status: 'active',
-      caseCount: 2,
-      totalValue: 200000,
-      lastContact: '2025-08-14',
-      category: 'Civil',
-      priority: 'medium',
-      location: 'Hyderabad, Telangana'
-    },
-    {
-      id: '3',
-      name: 'TechCorp Acquisition',
-      email: 'legal@techcorp.com',
-      phone: '+91 76543 21098',
-      avatar: 'T',
-      status: 'active',
-      caseCount: 1,
-      totalValue: 800000,
-      lastContact: '2025-08-13',
-      category: 'Corporate',
-      priority: 'high',
-      location: 'Bangalore, Karnataka'
-    }
-  ];
-
-  const mockConsultations = [
-    {
-      id: 'c1',
-      clientId: '1',
-      clientName: 'Reliance Industries Ltd.',
-      date: '2025-08-20',
-      time: '10:00 AM',
-      duration: '60 minutes',
-      type: 'online',
-      status: 'scheduled',
-      subject: 'M&A Legal Review',
-      fee: 50000,
-      meetingLink: 'https://meet.google.com/abc-defg-hij',
-      notes: 'Urgent consultation regarding acquisition compliance'
-    },
-    {
-      id: 'c2',
-      clientId: '2',
-      clientName: 'Greenfield Society',
-      date: '2025-08-18',
-      time: '2:30 PM',
-      duration: '45 minutes',
-      type: 'offline',
-      status: 'completed',
-      subject: 'Municipal Compliance Discussion',
-      fee: 15000,
-      meetingLink: null,
-      notes: 'Discussed waste management petition strategy'
-    },
-    {
-      id: 'c3',
-      clientId: '3',
-      clientName: 'TechCorp Acquisition',
-      date: '2025-08-19',
-      time: '4:00 PM',
-      duration: '90 minutes',
-      type: 'online',
-      status: 'confirmed',
-      subject: 'Due Diligence Review',
-      fee: 75000,
-      meetingLink: 'https://meet.google.com/xyz-uvwx-yz',
-      notes: 'Comprehensive review of acquisition documents'
-    }
-  ];
 
   const mockConsultationRequests = [
     {
@@ -241,21 +152,25 @@ export default function MyConsultations() {
     loadData();
   }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!user?.uid || !user?.role) return;
+    setLoading(true);
+    
     try {
-      setLoading(true);
-      // Simulate API calls
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setClients(mockClients);
-      setConsultations(mockConsultations);
+      const [consultationResult] = await Promise.all([
+        dispatch(getUserConsultations({userId:user?.uid,role:user?.role})).unwrap()
+      ]);
+      console.log(consultationResult,'conssssssssssssssss')
+      setClients(resource);
+      setConsultations(consultationResult);
       setConsultationRequests(mockConsultationRequests);
     } catch (error) {
-      console.error('Error loading data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch cases:', error);
+
+      Alert.alert('Error', 'Failed to fetch cases');
     }
-  };
+    setLoading(false);
+  }, [dispatch, user?.uid, user?.role]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -356,16 +271,15 @@ export default function MyConsultations() {
 
   const submitConsultationSchedule = async () => {
     try {
-      // Validate form
+      // --- Validation ---
       if (!scheduleForm.clientName || !scheduleForm.subject || !scheduleForm.time) {
         Alert.alert('Error', 'Please fill in all required fields');
         return;
       }
 
-      // Simulate API call
+      // --- Prepare consultation object ---
       const newConsultation = {
-        id: `c${Date.now()}`,
-        clientId: scheduleForm.clientId,
+        clientId: user?.clientId,
         clientName: scheduleForm.clientName,
         date: scheduleForm.date.toISOString().split('T')[0],
         time: scheduleForm.time,
@@ -374,14 +288,27 @@ export default function MyConsultations() {
         status: 'scheduled',
         subject: scheduleForm.subject,
         fee: parseInt(scheduleForm.fee) || 0,
-        meetingLink: scheduleForm.type === 'online' ? 'https://meet.google.com/generated-link' : null,
-        notes: scheduleForm.description
+        meetingLink: scheduleForm.type === 'online' 
+          ? 'https://meet.google.com/generated-link' 
+          : null,
+        notes: scheduleForm.description,
+        urgent: scheduleForm.urgent || false,
+        createdAt: new Date().toISOString(),
+        ...(user?.role === 'lawyer' && { lawyerId: user?.uid }),
+        ...(user?.role === 'client' && { clientId: user?.uid }),
+        ...(user?.role === 'firm'   && { firmId: user?.uid }),
       };
 
-      setConsultations(prev => [...prev, newConsultation]);
-      setShowScheduleModal(false);
-      
-      // Reset form
+      // --- Save to Firestore via Redux thunk ---
+      const createdId = await dispatch(createConsultation(newConsultation)).unwrap();
+
+      // --- Add to local state with the Firestore ID ---
+      setConsultations(prev => [
+        ...prev,
+        { id: createdId, ...newConsultation }
+      ]);
+
+      // --- Reset form ---
       setScheduleForm({
         clientId: '',
         clientName: '',
@@ -395,11 +322,15 @@ export default function MyConsultations() {
         urgent: false
       });
 
+      setShowScheduleModal(false);
       Alert.alert('Success', 'Consultation scheduled successfully');
+
     } catch (error) {
-      Alert.alert('Error', 'Failed to schedule consultation');
+      console.error('Consultation schedule error:', error);
+      Alert.alert('Error', error.message || 'Failed to schedule consultation');
     }
   };
+
 
   // Handle consultation request actions
   const handleRequestAction = (request, action) => {

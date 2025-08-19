@@ -324,7 +324,7 @@ class CaseService {
         throw new Error('User ID is required');
       }
       
-      if (!userRole || !['lawyer', 'client'].includes(userRole)) {
+      if (!userRole || !['lawyer', 'client','firm'].includes(userRole)) {
         throw new Error('Valid user role is required (lawyer or client)');
       }
 

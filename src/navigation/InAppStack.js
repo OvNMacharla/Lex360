@@ -16,6 +16,15 @@ import LawyerDashboard from '../screens/lawyer/LawyerDashboard';
 import AnalyticsScreen from '../screens/shared/AnalyticsScreen'; // optional
 import RevenueScreen from '../screens/shared/RevenueScreen'; // optional
 import ChatScreen from '../screens/shared/ChatScreen';
+import LawFirmDashboard from '../screens/firm/LawfirmDashboard';
+import LawyerManagement from '../screens/firm/LawyerManagement';
+import ClientManagement from '../screens/firm/ClientManagement';
+import PracticeAreas from '../screens/firm/PracticeAreas';
+import CaseOversight from '../screens/firm/CaseOverSight';
+import UtilizationRate from '../screens/firm/UtilizationRate';
+import Reports from '../screens/firm/Reports';
+import FirmSettings from '../screens/firm/FirmSetting';
+
 const Stack = createStackNavigator();
 
 export default function InAppStack() {
@@ -36,6 +45,35 @@ export default function InAppStack() {
       <Stack.Screen name={SCREEN_NAMES.REVENUE} component={RevenueScreen} />
       <Stack.Screen name={SCREEN_NAMES.LAWYER_DASHBOARD} component={LawyerDashboard} />
       <Stack.Screen name={SCREEN_NAMES.CHAT} component={ChatScreen} />
+      <Stack.Screen name={SCREEN_NAMES.FIRM_DASHBOARD} component={LawFirmDashboard}/>
+      <Stack.Screen 
+        name="LawyerManagement" 
+        component={LawyerManagement}
+      />
+      <Stack.Screen 
+        name="ClientManagement" 
+        component={ClientManagement}
+      />
+      <Stack.Screen 
+        name="PracticeAreas" 
+        component={PracticeAreas}
+      />
+      <Stack.Screen 
+        name="CaseOversight" 
+        component={CaseOversight}
+      />
+      <Stack.Screen 
+        name="UtilizationRate" 
+        component={UtilizationRate}
+      />
+      <Stack.Screen 
+        name="Reports" 
+        component={Reports}
+      />
+      <Stack.Screen 
+        name="FirmSettings" 
+        component={FirmSettings}
+      />
     </Stack.Navigator>
   );
 }

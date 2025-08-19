@@ -53,8 +53,10 @@ function CustomDrawerContent(props) {
   const handleProfilePress = () => {
     if (user?.role === USER_ROLES.LAWYER) {
       props.navigation.navigate('InApp', { screen: SCREEN_NAMES.LAWYER_DASHBOARD });
-    } else {
+    } else if(user?.role === USER_ROLES.CLIENT) {
       props.navigation.navigate('InApp', { screen: SCREEN_NAMES.CLIENT_DASHBOARD });
+    } else if(user?.role === USER_ROLES.FIRM){
+      props.navigation.navigate('InApp',{ screen: SCREEN_NAMES.FIRM_DASHBOARD })
     }
   };
 

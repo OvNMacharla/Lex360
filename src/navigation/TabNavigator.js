@@ -62,6 +62,7 @@ export default function TabNavigator() {
   // Check if user is a client
   const isClient = user?.role === USER_ROLES.CLIENT;
   const isLawyer = user?.role === USER_ROLES.LAWYER;
+  const firm = user?.role === USER_ROLES.FIRM;
 
   // Loading component for smooth transitions
   const LoadingScreen = () => (
@@ -311,7 +312,7 @@ export default function TabNavigator() {
   }
 
   // Lawyer navigation (full access)
-  if (isLawyer) {
+  if (isLawyer || firm) {
     return (
       <>
         <StatusBar 

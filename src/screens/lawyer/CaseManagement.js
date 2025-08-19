@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import ShimmerPlaceHolder from "react-native-shimmer-placeholder";
 import {
   View,
   StyleSheet,
@@ -36,7 +37,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import * as DocumentPicker from 'expo-document-picker';
 import { createCase, updateCase, deleteCase, getUserCases } from '../../store/caseSlice';
 import { getAllUsers } from '../../store/userSlice';
-
+import {useRoute} from '@react-navigation/native';
 const { width, height } = Dimensions.get('window');
 
 // Enhanced color palette
@@ -133,6 +134,46 @@ const getTimelineEventInfo = (type) => {
   return timelineEventTypes.find(t => t.id === type) || timelineEventTypes[timelineEventTypes.length - 1];
 };
 
+const CaseSkeleton = ({ viewMode }) => (
+  <View
+    style={{
+      flex: viewMode === "grid" ? 0.5 : 1,
+      margin: 8,
+      borderRadius: 12,
+      backgroundColor: "#fff",
+      padding: 12,
+      shadowColor: "#000",
+      shadowOpacity: 0.05,
+      shadowRadius: 5,
+      elevation: 2,
+    }}
+  >
+    {/* Top title placeholder */}
+    <ShimmerPlaceHolder
+      LinearGradient={LinearGradient}
+      style={{ height: 20, borderRadius: 6, marginBottom: 10 }}
+    />
+
+    {/* Subtitle */}
+    <ShimmerPlaceHolder
+      LinearGradient={LinearGradient}
+      style={{ height: 16, width: "70%", borderRadius: 6, marginBottom: 10 }}
+    />
+
+    {/* Row for stats */}
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+      <ShimmerPlaceHolder
+        LinearGradient={LinearGradient}
+        style={{ height: 14, width: "30%", borderRadius: 6 }}
+      />
+      <ShimmerPlaceHolder
+        LinearGradient={LinearGradient}
+        style={{ height: 14, width: "25%", borderRadius: 6 }}
+      />
+    </View>
+  </View>
+);
+
 export default function CaseManagement({ navigation }) {
   const isDarkMode = useSelector((state) => state.theme?.isDarkMode || false);
     const { user } = useSelector((state) => state.auth);
@@ -152,6 +193,7 @@ export default function CaseManagement({ navigation }) {
     const [menuVisibleFor, setMenuVisibleFor] = useState(null);
     const scrollY = useRef(new Animated.Value(0)).current;
     const [loading, setLoading] = useState(true);
+    const route = useRoute();
   
     // Enhanced modals state
     const [showAddDocumentModal, setShowAddDocumentModal] = useState(false);
@@ -179,7 +221,8 @@ export default function CaseManagement({ navigation }) {
     const [form, setForm] = useState(emptyForm);
     const [editForm, setEditForm] = useState(null);
     const [teamInput, setTeamInput] = useState('');
-    const [cases, setCases] = useState([]);
+    const { resource } = route.params || {};
+    const [cases, setCases] = useState(resource?resource:[]);
     const [users, setUsers] = useState([]);
   
     // Memoized fetch function to prevent re-renders
@@ -188,11 +231,11 @@ export default function CaseManagement({ navigation }) {
       setLoading(true);
       
       try {
-        const [casesResult, usersResult] = await Promise.all([
-          dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap(),
+        const [usersResult] = await Promise.all([
+          // dispatch(getUserCases({ userId: user.uid, userRole: user.role })).unwrap(),
           dispatch(getAllUsers()).unwrap()
         ]);
-        setCases(casesResult);
+        // setCases(casesResult);
         setUsers(usersResult);
       } catch (error) {
         console.error('Failed to fetch cases:', error);
@@ -357,6 +400,18 @@ export default function CaseManagement({ navigation }) {
           return 0;
         });
     }, [cases, searchQuery, selectedFilters, sortBy]);
+
+
+    const getInvolvedClients = (cases, users) => {
+      // filter only users with role = client
+      const clients = users.filter(u => u.role === 'client');
+
+      // find clients whose displayName matches case.client
+      return clients.filter(client =>
+        cases.some(c => c.client === client.displayName)
+      );
+    };
+
   
     // Animated values
     const headerHeight = scrollY.interpolate({
@@ -2457,15 +2512,14 @@ export default function CaseManagement({ navigation }) {
       </Animated.View>
 
 
-            {loading ? <View>
-              <LinearGradient
-                colors={colors.gradient.glass}
-                style={styles.loadingGradient}
-              >
-                <ActivityIndicator size="large" color="black" />
-              </LinearGradient>
-            </View>: 
-          
+            {loading ? (<FlatList
+            data={Array.from({ length: 6 })} // number of skeletons
+            key={viewMode}
+            renderItem={() => <CaseSkeleton viewMode={viewMode} />}
+            keyExtractor={(item, index) => index.toString()}
+            numColumns={viewMode === "grid" ? 2 : 1}
+            contentContainerStyle={styles.casesListContent}
+          />): 
       <FlatList
         data={filteredCases}
         key={viewMode} 

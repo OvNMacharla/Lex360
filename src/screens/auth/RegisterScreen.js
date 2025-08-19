@@ -559,6 +559,36 @@ export default function RegisterScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </Animated.View>
+
+          <Animated.View style={{ transform: [{ scale: roleCardAnimations[1] }] }}>
+            <TouchableOpacity
+              onPress={() => handleRoleSelect(USER_ROLES.FIRM, 1)}
+              style={[
+                styles.roleCard,
+                formData.role === USER_ROLES.FIRM && styles.roleCardSelected
+              ]}
+            >
+              <Surface style={styles.roleIconContainer} elevation={4}>
+                <Icon 
+                  name="scale-balance" 
+                  size={32} 
+                  color={formData.role === USER_ROLES.FIRM ? colors.primary : '#666'} 
+                />
+              </Surface>
+              <Text style={[
+                styles.roleCardTitle,
+                formData.role === USER_ROLES.FIRM && styles.roleCardTitleSelected
+              ]}>
+                Firm
+              </Text>
+              <Text style={styles.roleCardDescription}>
+                Providing legal services
+              </Text>
+              {formData.role === USER_ROLES.FIRM && (
+                <Icon name="check-circle" size={20} color={colors.primary} style={styles.roleCheckIcon} />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
       </View>
 
